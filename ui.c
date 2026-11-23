@@ -8,8 +8,8 @@
 #include "sprite.h"
 
 // start screen
-#define BOX_W 36
-#define BOX_H 10
+#define BOX_W 38
+#define BOX_H 14
 
 static void intro_geom(int *bx, int *by) {
     *bx = (gfx_cols - BOX_W) / 2;
@@ -43,7 +43,8 @@ static void hline(int x, int y, int w, const char *l, const char *m, const char 
 static void intro_text(float t) {
     int bx, by;
     intro_geom(&bx, &by);
-    Col frame = col(120, 210, 235), title = col(255, 255, 255);
+    Col frame = col(120, 210, 235), title = col(255, 255, 255),
+        description = col(128, 128, 255), cr = col(200, 200, 200);
     Col key = col(255, 215, 110), desc = col(215, 232, 245);
 
     hline(bx, by, BOX_W, "┌", "─", "┐", frame);
@@ -53,8 +54,10 @@ static void intro_text(float t) {
         text_put(2, bx + BOX_W - 1, y, "│", frame, 1.0f);
     }
 
-    const char *head = "TERMINAL AQUARIUM";
+    const char *head = "FISH";
     text_put(2, bx + (BOX_W - utf8_len(head)) / 2, by + 1, head, title, 1.0f);
+    const char *subhead = "A tiny ecosystem in your terminal.";
+    text_put(2, bx + (BOX_W - utf8_len(subhead)) / 2, by + 2, subhead, description, 1.0f);
 
     static const struct { const char *k, *d; } help[] = {
         {"space / click", "feed the fish"},
@@ -63,9 +66,14 @@ static void intro_text(float t) {
         {"q", "quit"},
     };
     for (int i = 0; i < 4; i++) {
-        text_put(2, bx + 3, by + 3 + i, help[i].k, key, 1.0f);
-        text_put(2, bx + 3 + 16, by + 3 + i, help[i].d, desc, 1.0f);
+        text_put(2, bx + 3, by + 4 + i, help[i].k, key, 1.0f);
+        text_put(2, bx + 3 + 16, by + 4 + i, help[i].d, desc, 1.0f);
     }
+
+    const char *copyright = "Created by 3xxx0rc1st";
+    text_put(2, bx + (BOX_W - utf8_len(copyright)) / 2, by + 9, copyright, cr, 1.0f);
+    const char *year = "© 2026";
+    text_put(2, bx + (BOX_W - utf8_len(year)) / 2, by + 10, year, cr, 1.0f);
 
     const char *prompt = "press any key";
     float blink = 0.55f + 0.45f * sinf(t * 3.0f);   // blinking prompt
