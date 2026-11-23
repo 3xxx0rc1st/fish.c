@@ -9,7 +9,7 @@ DESTDIR   ?=
 $(if $(strip $(BUILD_DIR)),,$(error BUILD_DIR shouldn't be empty))
  
 CC      ?= gcc
-CFLAGS  ?= -O2 -pipe
+CFLAGS  ?= -O2 -pipe -DNDEBUG
 LDFLAGS ?=
 LDLIBS  ?=
  
@@ -22,7 +22,6 @@ OBJ   := $(SRC:%.c=$(BUILD_DIR)/%.o)
 BIN   := $(BUILD_DIR)/$(NAME)
 STAMP := $(BUILD_DIR)/.flags
  
-# V=1 — полные команды, иначе короткие строки
 ifeq ($(V),1)
   Q :=
   say = @:

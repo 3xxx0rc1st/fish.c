@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
         double target = 1.0 / fps_target, el = now_s() - start;
         if (el < target) {
             double s = target - el;
-            struct timespec ts = {(time_t)s, (long)((s - (time_t)s) + 1e9)};
+            struct timespec ts = {(time_t)s, (long)((s - (time_t)s) * 1e9)};
             nanosleep(&ts, NULL);
         }
     }
