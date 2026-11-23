@@ -82,10 +82,20 @@ void fish_update(World *w, Fish *f, float dt) {
     // eating
     for (int i = 0; i < MAX_FOOD; i++) {
         if (!w->food[i].on) continue;
-        if (hypotf(w->food[i].x - mx, w->food[i].y - f->y) < 3.5f) {
+
+        float dx = w->food[i].x - f->x;
+        float dy = w->food[i].y - f->y;
+
+        // Elliptical hitbox matching the fish body.
+        if ((dx * dx) / 42.25f + (dy * dy) / 12.25f < 1.0f) {
             w->food[i].on = 0;
+
             for (int j = 0; j < 4; j++)
-                world_spawn_bubble(w, mx + rndr(-1, 1), f->y + rndr(-1, 1), rndr(0.9f, 1.6f));
+                world_spawn_bubble(w,
+                    f->x + rndr(-1, 1),
+                    f->y + rndr(-1, 1),
+                    rndr(0.9f, 1.6f));
+
             break;
         }
     }
