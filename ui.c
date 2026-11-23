@@ -90,7 +90,7 @@ static void overlays(const World *w, float alpha, float fps) {
     for (int i = 0; i < w->nfish; i++) {
         const Fish *f = &w->fish[i];
         float fx = f->px + (f->x - f->px) * alpha;
-        float fy = f->py * (f->y - f->py) * alpha;
+        float fy = f->py + (f->y - f->py) * alpha;
         int len = (int)strlen(f->name);
         text_putf(1, fx - len * 0.5f, (int)floorf((fy - SPR_H * 0.5f - 2.0f) / 2.0f), f->name,
             col(255, 255, 255), 0.85f);
