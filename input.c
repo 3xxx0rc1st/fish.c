@@ -7,11 +7,62 @@
 #include "shell.h"
 #include "term.h"
 #include "theme.h"
+#include "util.h"
+
+// A read can end in the middle of an escape sequence (a fast mouse wheel sends hundreds of
+// 12-byte events; any chunk boundary cuts one). The cut-off head must not be handled alone,
+// and the tail must not be taken for typed text - so an unfinished sequence waits for the rest.
+#define IN_MAX   4096
+#define IN_TAIL  48         // longest sequence we wait for
+#define ESC_WAIT 0.04       // a lone Esc is a key press if nothing follows within this time
+
+static char   pend[IN_TAIL + 8];
+static size_t npend;
+static double pend_t;
+
+// where an unfinished escape sequence at the end of b[0..n) starts; n if the end is complete
+static size_t unfinished_tail(const char *b, size_t n) {
+    size_t lo = n > IN_TAIL ? n - IN_TAIL : 0;
+    for (size_t i = n; i-- > lo;) {
+        if (b[i] != 0x1b) continue;
+        size_t len = n - i;
+        if (len == 1) return i;                         // bare Esc: maybe the beginning of something
+        if (b[i + 1] == 'O') return len >= 3 ? n : i;   // SS3: Esc O <final>
+        if (b[i + 1] != '[') return n;                  // Alt+key: two bytes, complete
+        size_t j = i + 2;
+        if (j < n && b[j] == '[') j++;                  // Linux console F1-F5: Esc [ [ A
+        for (; j < n; j++)
+            if ((unsigned char)b[j] >= 0x40 && (unsigned char)b[j] <= 0x7e) return n;
+        return i;                                       // parameters without the final byte
+    }
+    return n;
+}
 
 void input_poll(World *w, int *intro) {
-    char buf[256];
-    ssize_t n = read(STDIN_FILENO, buf, sizeof buf - 1);
-    if (n <= 0) return;
+    static char ibuf[IN_MAX + IN_TAIL + 8];
+    char *buf = ibuf;
+    size_t have = npend;
+    memcpy(buf, pend, npend);
+    size_t was = npend;
+    npend = 0;
+    int fresh = 0;
+    while (have < IN_MAX) {                             // everything that has piled up, not just a piece
+        ssize_t r = read(STDIN_FILENO, buf + have, IN_MAX - have);
+        if (r <= 0) break;
+        have += (size_t)r;
+        fresh = 1;
+    }
+    if (have == 0) return;
+
+    size_t cut = unfinished_tail(buf, have);
+    if (cut < have) {
+        double t = now_s();
+        if (fresh || was == 0) pend_t = t;
+        if (!fresh && t - pend_t > ESC_WAIT) cut = have;        // nothing came: it was a key
+        else { npend = have - cut; memcpy(pend, buf + cut, npend); }
+    }
+    ssize_t n = (ssize_t)cut;
+    if (n == 0) return;
     buf[n] = 0;
 
     if (shell_visible()) { shell_input(buf, (size_t)n); return; }     // the panel gets all the keys
