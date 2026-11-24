@@ -6,7 +6,7 @@
 #include "theme.h"
 #include "world.h"
 
-static const char *NAMES[] = {"Bob", "Karl", "Yuri", "Nemo", "Kusya", "Bublik", "Chub", "Glub"};
+static const char *NAMES[] = {"Bob", "Karl", "Yuri", "Nemo", "Kusya", "Sonya", "Chub", "Glub"};
 #define NNAMES ((int)(sizeof NAMES / sizeof *NAMES))
 
 // first name that none of the living fish has
