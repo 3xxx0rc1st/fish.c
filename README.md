@@ -37,7 +37,7 @@ No GUI frameworks, no heavyweight dependencies, no unnecessary abstraction. Just
 Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/3xxx0rc1st/fish.c
 cd fish.c
 ```
 
