@@ -26,8 +26,10 @@ static int tex(int sx, int sy, const FishPalette *p, Col *out) {
     return 0;
 }
 
-void sprite_draw_fish(const FishPalette *pal, float cx, float cy, float face, float phase) {
+void sprite_draw_fish(const FishPalette *pal, float cx, float cy, float face, float phase,
+                       float roll, float opacity) {
     float scale = fmaxf(fabsf(face), 0.12f);
+    float rscale = fmaxf(fabsf(roll), 0.12f);
     int x0 = (int)floorf(cx - SPR_W / 2 - 2), x1 = (int)ceilf(cx + SPR_W / 2 + 2);
     int y0 = (int)floorf(cy - SPR_H / 2 - 3), y1 = (int)ceilf(cy + SPR_H / 2 + 3);
     if (x0 < 0) x0 = 0;
@@ -39,7 +41,8 @@ void sprite_draw_fish(const FishPalette *pal, float cx, float cy, float face, fl
     for (int iy = y0; iy <= y1; iy++) {
         for (int ix = x0; ix <= x1; ix++) {
             float u = (ix + 0.5f - cx) / scale;
-            float v = iy + 0.5f - cy;
+            float v = (iy + 0.5f - cy) / rscale;
+            if (roll < 0) v = -v;
             if (face > 0) u = -u;
             float sx = u + SPR_W * 0.5f;
             float tf = clampf((sx - 8.0f) / 5.0f, 0, 1);
@@ -53,13 +56,13 @@ void sprite_draw_fish(const FishPalette *pal, float cx, float cy, float face, fl
                     Col c;
                     if (tex(tx + i, ty + j, pal, &c)) {
                         float w = (i ? ax : 1 - ax) * (j ? ay : 1 - ay);
-                        ar += c.r * w; ag += c.g * w; ab += c.b * w; aa += 2;
+                        ar += c.r * w; ag += c.g * w; ab += c.b * w; aa += w;
                     }
                 }
             if (aa < 0.02f) continue;
             Col c = col(ar / aa, ag / aa, ab / aa);
             float alpha = clampf((aa - 0.5f) * 1.8f + 0.5f, 0, 1);
-            gfx_blend(ix, iy, c, alpha);
+            gfx_blend(ix, iy, c, alpha * opacity);
         }
     }
 }

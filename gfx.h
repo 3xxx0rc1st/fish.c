@@ -27,6 +27,11 @@ static inline void gfx_blend(int x, int y, Col c, float a) {
     p->b += (c.b - p->b) * a;
 }
 
+// Linux console mode (vt_active): the console has 16 colors, not truecolor.
+// pal - what is loaded into its palette now; gfx_present sends changes itself.
+// Indices 0-7 may be backgrounds, 8-15 foreground only (see theme_vt_palette).
+void gfx_vt_palette(const Col pal[16]);
+
 // bilinear "splat" of a dot in float coords - more smoothness
 void gfx_splat(float x, float y, Col c, float a);
 

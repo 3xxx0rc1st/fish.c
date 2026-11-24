@@ -42,6 +42,13 @@ void world_update(World *w, float dt) {
         }
     }
     for (int i = 0; i < w->nfish; i++) fish_update(w, &w->fish[i], dt);
+    int k = 0;      // remove the dead (keeping the order - it is the draw order)
+    for (int i = 0; i < w->nfish; i++) {
+        if (w->fish[i].dead) continue;
+        if (k != i) w->fish[k] = w->fish[i];
+        k++;
+    }
+    w->nfish = k;
     for (int i = 0; i < MAX_BUB; i++) bubble_update(&w->bub[i], dt);
     for (int i = 0; i < MAX_FOOD; i++) food_update(w, &w->food[i], dt);
 }
@@ -56,17 +63,52 @@ void world_bubble_burst(World *w, int n) {
         world_spawn_bubble(w, rndr(2, (float)w->w - 2), (float)(w->h - 5), rndr(0.9f, 2.4f));
 }
 
-void world_drop_food(World *w, float x, float y) {
+void world_drop_food(World *w, float x, float y, int pile) {
     for (int i = 0; i < MAX_FOOD; i++)
-        if (!w->food[i].on) { food_init(&w->food[i], x, y); return; }
+        if (!w->food[i].on) { food_init(&w->food[i], x, y, pile); return; }
 }
 
 void world_drop_food_burst(World *w, float x, float y) {
-    for (int i = 0; i < 3; i++) world_drop_food(w, x + rndr(-2, 2), y + rndr(-1, 1));
+    int pile = ++w->pile_serial;
+    for (int i = 0; i < 3; i++) world_drop_food(w, x + rndr(-2, 2), y + rndr(-1, 1), pile);
 }
 
 void world_add_fish(World *w) {
-    if (w->nfish >= MAX_FISH) return;
-    fish_init(&w->fish[w->nfish], w, w->nfish);
+    if (world_fish_alive(w) >= MAX_FISH || w->nfish >= FISH_SLOTS) return;
+    fish_init(&w->fish[w->nfish], w);
     w->nfish++;
+    w->spawned++;
+}
+
+int world_fish_alive(const World *w) {
+    int n = 0;
+    for (int i = 0; i < w->nfish; i++) n += !w->fish[i].dying;
+    return n;
+}
+
+int world_kill_fish(World *w) {
+    int n = world_fish_alive(w);
+    if (!n) return 0;
+    int pick = (int)(rnd() * (float)n);
+    if (pick >= n) pick = n - 1;
+    for (int i = 0; i < w->nfish; i++) {
+        if (w->fish[i].dying) continue;
+        if (pick-- == 0) { fish_kill(w, &w->fish[i]); return 1; }
+    }
+    return 0;
+}
+
+int world_kill_fish_at(World *w, float x, float y) {
+    int best = -1;
+    float bd = 1.0f;
+    for (int i = 0; i < w->nfish; i++) {
+        const Fish *f = &w->fish[i];
+        if (f->dying) continue;
+        float nx = (x - f->x) / 8.5f, ny = (y - f->y) / 5.0f;   // a bit larger than the body
+        float d = nx * nx + ny * ny;
+        if (d < bd) { bd = d; best = i; }
+    }
+    if (best < 0) return 0;
+    fish_kill(w, &w->fish[best]);
+    return 1;
 }

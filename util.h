@@ -8,6 +8,8 @@ typedef struct { float r, g, b; } Col;
 
 static inline Col col(float r, float g, float b) { Col c = {r, g, b}; return c; }
 static inline float clampf(float v, float a, float b) { return v < a ? a : (v > b ? b : v); }
+static inline float lerpf(float a, float b, float t) { return a + (b - a) * t; }
+static inline Col scalec(Col c, float k) { return col(c.r * k, c.g * k, c.b * k); }
 static inline Col lerpc(Col a, Col b, float t) {
     return col(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t);
 }

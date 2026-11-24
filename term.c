@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "term.h"
+#include "vt.h"
 
 #include <errno.h>
 #include <signal.h>
@@ -21,6 +22,7 @@ void term_restore(void) {
     const char *s = "\x1b[?2026l\x1b[?1006l\x1b[?1000l\x1b[?7h\x1b[0m\x1b[?25h\x1b[?1049l";
     ssize_t r = write(STDOUT_FILENO, s, strlen(s));
     (void)r;
+    vt_restore();   // font, palette, clear screen - only on the Linux console
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_tio);
     raw_on = 0;
 }

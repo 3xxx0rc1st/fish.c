@@ -12,7 +12,10 @@ typedef struct { Col body, tail, fin; } FishPalette;
 // Draws a fish with center in (cx, cy) in float coords.
 // face - [-1..1]: -1 looks left, +1 looks right; sprite shinks inbetween them (turn)
 // phase - tail wagging phase (radians)
+// roll - [-1..1]: 1 - normal, -1 - belly up (squashes through 0, like the turn)
+// opacity - [0..1], for dying fish
 // Reverse mapping + bilinear sampling: no per-frame sprites
-void sprite_draw_fish(const FishPalette *pal, float cx, float cy, float face, float phase);
+void sprite_draw_fish(const FishPalette *pal, float cx, float cy, float face, float phase,
+                       float roll, float opacity);
 
 #endif

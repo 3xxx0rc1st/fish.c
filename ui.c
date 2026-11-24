@@ -6,10 +6,12 @@
 
 #include "gfx.h"
 #include "sprite.h"
+#include "theme.h"
+#include "vt.h"
 
 // start screen
 #define BOX_W 38
-#define BOX_H 14
+#define BOX_H 16
 
 static void intro_geom(int *bx, int *by) {
     *bx = (gfx_cols - BOX_W) / 2;
@@ -18,7 +20,7 @@ static void intro_geom(int *bx, int *by) {
     if (*by < 0) *by = 0;
 }
 
-static void intro_backdrop(void) {
+static void intro_backdrop(const Theme *th) {
     for (int i = 0; i < gfx_w * gfx_h; i++) {
         gfx_px[i].r *= 0.5f; gfx_px[i].g *= 0.5; gfx_px[i].b *= 0.5f;
     }
@@ -26,7 +28,7 @@ static void intro_backdrop(void) {
     intro_geom(&bx, &by);
     for (int y = by * 2; y < (by + BOX_H) * 2 && y < gfx_h; y++)
         for (int x = bx; x < bx + BOX_W && x < gfx_w; x++)
-            gfx_px[y * gfx_w + x] = col(6, 18, 36);
+            gfx_px[y * gfx_w + x] = th->ui_box;
 }
 
 static void hline(int x, int y, int w, const char *l, const char *m, const char *r, Col c) {
@@ -40,12 +42,11 @@ static void hline(int x, int y, int w, const char *l, const char *m, const char 
     text_put(2, x, y, line, c, 1.0f);
 }
 
-static void intro_text(float t) {
+static void intro_text(float t, const Theme *th) {
     int bx, by;
     intro_geom(&bx, &by);
-    Col frame = col(120, 210, 235), title = col(255, 255, 255),
-        description = col(128, 128, 255), cr = col(200, 200, 200);
-    Col key = col(255, 215, 110), desc = col(215, 232, 245);
+    Col frame = th->ui_frame, title = th->ui_title, description = th->ui_sub, cr = th->ui_dim;
+    Col key = th->ui_key, desc = th->ui_text;
 
     hline(bx, by, BOX_W, "┌", "─", "┐", frame);
     hline(bx, by + BOX_H - 1, BOX_W, "└", "─", "┘", frame);
@@ -59,29 +60,32 @@ static void intro_text(float t) {
     const char *subhead = "A tiny ecosystem in your terminal.";
     text_put(2, bx + (BOX_W - utf8_len(subhead)) / 2, by + 2, subhead, description, 1.0f);
 
-    static const struct { const char *k, *d; } help[] = {
-        {"space / click", "feed the fish"},
-        {"f", "add a fish"},
-        {"b", "launch bubbles"},
-        {"q", "quit"},
+    // the Linux console has no mouse
+    static const struct { const char *k, *kv, *d; } help[] = {
+        {"space / click", "space", "feed the fish"},
+        {"f", "f", "add a fish"},
+        {"k / right-click", "k", "kill a fish"},
+        {"t / T", "t / T", "switch palette"},
+        {"b", "b", "launch bubbles"},
+        {"q", "q", "quit"},
     };
-    for (int i = 0; i < 4; i++) {
-        text_put(2, bx + 3, by + 4 + i, help[i].k, key, 1.0f);
+    for (int i = 0; i < 6; i++) {
+        text_put(2, bx + 3, by + 4 + i, vt_active ? help[i].kv : help[i].k, key, 1.0f);
         text_put(2, bx + 3 + 16, by + 4 + i, help[i].d, desc, 1.0f);
     }
 
     const char *copyright = "Created by 3xxx0rc1st";
-    text_put(2, bx + (BOX_W - utf8_len(copyright)) / 2, by + 9, copyright, cr, 1.0f);
-    const char *year = "© 2026";
-    text_put(2, bx + (BOX_W - utf8_len(year)) / 2, by + 10, year, cr, 1.0f);
+    text_put(2, bx + (BOX_W - utf8_len(copyright)) / 2, by + 11, copyright, cr, 1.0f);
+    const char *year = vt_active ? "(c) 2026" : "© 2026";
+    text_put(2, bx + (BOX_W - utf8_len(year)) / 2, by + 12, year, cr, 1.0f);
 
     const char *prompt = "press any key";
     float blink = 0.55f + 0.45f * sinf(t * 3.0f);   // blinking prompt
-    text_put(2, bx + (BOX_W - utf8_len(prompt)) / 2, by + BOX_H - 2, prompt, col(150, 230, 255), blink);
+    text_put(2, bx + (BOX_W - utf8_len(prompt)) / 2, by + BOX_H - 2, prompt, th->ui_prompt, blink);
 }
 
 // regular overlays
-static void overlays(const World *w, float alpha, float fps) {
+static void overlays(const World *w, float alpha, float fps, const Theme *th) {
     int cols = gfx_cols, rows = gfx_rows;
 
     // layers 0 and 1: scrolling lines move toward each other, one line each,
@@ -97,6 +101,7 @@ static void overlays(const World *w, float alpha, float fps) {
     // fish tags (layer 1)
     for (int i = 0; i < w->nfish; i++) {
         const Fish *f = &w->fish[i];
+        if (f->dying) continue;
         float fx = f->px + (f->x - f->px) * alpha;
         float fy = f->py + (f->y - f->py) * alpha;
         int len = (int)strlen(f->name);
@@ -104,18 +109,31 @@ static void overlays(const World *w, float alpha, float fps) {
             col(255, 255, 255), 0.85f);
     }
 
-    // HUD (layer 2)
-    char hud[160];
-    snprintf(hud, sizeof hud, " q quit | space/click feed | f fish | b bubbles | %2.0f fps ", fps);
-    text_put(2, 0, rows - 1, hud, col(255, 255, 255), 0.90f);
+    // HUD (layer 2): keys on the left, status on the right (dropped if it does not fit)
+    char keys[96], stat[64];
+    snprintf(keys, sizeof keys, " q quit | space feed | f +fish | k kill | t theme | b bubbles ");
+    snprintf(stat, sizeof stat, " %d fish | %s | %2.0f fps ", world_fish_alive(w), theme_name(theme_idx()), fps);
+    text_put(2, 0, rows - 1, keys, th->ui_title, 0.90f);
+    int sl = (int)strlen(stat);
+    if (cols - sl > (int)strlen(keys)) text_put(2, cols - sl, rows - 1, stat, th->ui_title, 0.90f);
+
+    // palette name toast after a switch
+    float age = theme_age();
+    if (age < 2.2f) {
+        char toast[64];
+        snprintf(toast, sizeof toast, " palette: %s [%d/%d] ", theme_name(theme_idx()), theme_idx() + 1, theme_count());
+        float a = clampf((2.2f - age) / 0.7f, 0, 1);
+        text_put(2, (cols - (int)strlen(toast)) / 2, 2, toast, th->ui_title, a);
+    }
 }
 
 void ui_draw(const World *w, float alpha, int intro, float fps) {
+    const Theme *th = theme_cur();
     text_clear();
     if (intro) {
-        intro_backdrop();
-        intro_text(w->t);
+        intro_backdrop(th);
+        intro_text(w->t, th);
         return;
     }
-    overlays(w, alpha, fps);
+    overlays(w, alpha, fps, th);
 }

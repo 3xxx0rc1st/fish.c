@@ -3,14 +3,24 @@
 #include <math.h>
 #include <string.h>
 
+#include "theme.h"
 #include "world.h"
 
-static const Col P_BODY[] = {
-    {255, 140, 40}, {80, 160, 255}, {255, 100, 160}, {110, 220, 110}, {240, 220, 80}, {170, 120, 255},
-};
 static const char *NAMES[] = {"Bob", "Karl", "Yuri", "Nemo", "Kusya", "Bublik", "Chub", "Glub"};
+#define NNAMES ((int)(sizeof NAMES / sizeof *NAMES))
 
-void fish_init(Fish *f, const World *w, int index) {
+// first name that none of the living fish has
+static const char *pick_name(const World *w) {
+    for (int k = 0; k < NNAMES; k++) {
+        int used = 0;
+        for (int i = 0; i < w->nfish; i++)
+            if (!w->fish[i].dying && w->fish[i].name == NAMES[k]) used = 1;
+        if (!used) return NAMES[k];
+    }
+    return NAMES[0];
+}
+
+void fish_init(Fish *f, const World *w) {
     memset(f, 0, sizeof *f);
     f->x = f->px = rndr(SPR_W, fmaxf(SPR_W + 1, (float)w->w - SPR_W));
     f->y = f->py = rndr(4, fmaxf(5, world_fish_ymax(w)));
@@ -18,24 +28,93 @@ void fish_init(Fish *f, const World *w, int index) {
     f->face = (float)f->dir;
     f->spd = rndr(11, 18);
     f->bt = rndr(1, 4);
-    f->pal.body = P_BODY[index % 6];
-    f->pal.tail = lerpc(f->pal.body, col(255, 255, 255), 0.35f);
-    f->pal.fin = col(f->pal.body.r * 0.6f, f->pal.body.g * 0.6f, f->pal.body.b * 0.6f);
-    f->name = NAMES[index % 8];
+    f->ci = w->spawned % THEME_FISH;
+    f->name = pick_name(w);
+}
+
+void fish_kill(World *w, Fish *f) {
+    if (f->dying) return;
+    f->dying = 1;
+    f->dtime = 0;
+    f->vx *= 0.3f;
+    f->vy = 0;
+    for (int j = 0; j < 3; j++)
+        world_spawn_bubble(w, f->x + rndr(-2, 2), f->y + rndr(-1, 1), rndr(0.9f, 1.6f));
+}
+
+// dead fish: no hunting, drifts up belly-up, then pops into bubbles
+static void fish_update_dying(World *w, Fish *f, float dt) {
+    f->px = f->x; f->py = f->y;
+    f->dtime += dt;
+    f->vx -= f->vx * clampf(2.0f * dt, 0, 1);
+    f->vy += (-3.5f - f->vy) * clampf(1.5f * dt, 0, 1);
+    f->x += f->vx * dt;
+    f->y += f->vy * dt;
+    float m = SPR_W * 0.5f + 1;
+    f->x = clampf(f->x, m, fmaxf(m, w->w - m));
+    if (f->y < 2.5f) { f->y = 2.5f; f->vy = 0; }
+    if (f->dtime >= FISH_DIE_T) {
+        for (int j = 0; j < 5; j++)
+            world_spawn_bubble(w, f->x + rndr(-3, 3), f->y + rndr(-1, 1), rndr(0.9f, 1.8f));
+        f->dead = 1;
+    }
+}
+
+// Is there any food left in this heap?
+static int pile_alive(const World *w, int id) {
+    if (!id) return 0;
+    for (int i = 0; i < MAX_FOOD; i++)
+        if (w->food[i].on && w->food[i].pile == id) return 1;
+    return 0;
+}
+
+// Choose a heap for the fish: the one with the fewest fish already going to it,
+// the closest among equals. So the school spreads over the heaps instead of one route.
+#define PILE_CROWD 1e4f     // bigger than any distance on the canvas: crowding beats closeness
+static int pick_pile(const World *w, const Fish *f) {
+    int best_id = 0;
+    float best = 1e9f;
+    for (int i = 0; i < MAX_FOOD; i++) {
+        const Food *fd = &w->food[i];
+        if (!fd->on) continue;
+        int seen = 0;
+        for (int j = 0; j < i; j++)
+            if (w->food[j].on && w->food[j].pile == fd->pile) { seen = 1; break; }
+        if (seen) continue;
+        float near = 1e9f;      // distance to the closest granule of the heap
+        for (int j = i; j < MAX_FOOD; j++) {
+            const Food *g = &w->food[j];
+            if (!g->on || g->pile != fd->pile) continue;
+            float d = hypotf(g->x - f->x, g->y - f->y);
+            if (d < near) near = d;
+        }
+        int crowd = 0;
+        for (int k = 0; k < w->nfish; k++) {
+            const Fish *o = &w->fish[k];
+            if (o != f && !o->dying && o->pile == fd->pile) crowd++;
+        }
+        float score = near + crowd * PILE_CROWD;
+        if (score < best) { best = score; best_id = fd->pile; }
+    }
+    return best_id;
 }
 
 void fish_update(World *w, Fish *f, float dt) {
+    if (f->dying) { fish_update_dying(w, f, dt); return; }
     f->px = f->x; f->py = f->y;
     const float ymax = world_fish_ymax(w);
 
-    // target: nearest food or wandering
+    // target: a granule of "its" heap, or wandering
     f->hunting = 0;
-    float best = 1e9f;
-    for (int i = 0; i < MAX_FOOD; i++) {
-        const Food *fd = &w ->food[i];
-        if (!fd->on) continue;
-        float d = hypotf(fd->x - f->x, fd->y - f->y);
-        if (d < best) { best = d; f->tx = fd->x; f->ty = fd->y; f->hunting = 1; }
+    if (!pile_alive(w, f->pile)) f->pile = pick_pile(w, f);
+    if (f->pile) {
+        float best = 1e9f;
+        for (int i = 0; i < MAX_FOOD; i++) {
+            const Food *fd = &w->food[i];
+            if (!fd->on || fd->pile != f->pile) continue;
+            float d = hypotf(fd->x - f->x, fd->y - f->y);
+            if (d < best) { best = d; f->tx = fd->x; f->ty = fd->y; f->hunting = 1; }
+        }
     }
     float dx = f->tx - f->x, dy = f->ty - f->y;
     float dist = hypotf(dx, dy);
@@ -132,8 +211,8 @@ void bubble_update(Bubble *b, float dt) {
 }
 
 // food
-void food_init(Food *f, float x, float y) {
-    *f = (Food){x, y, rndr(5, 8), 0, 1};
+void food_init(Food *f, float x, float y, int pile) {
+    *f = (Food){x, y, rndr(5, 8), 0, 1, pile};
 }
 
 void food_update(const World *w, Food *f, float dt) {
@@ -153,6 +232,5 @@ void weed_init(Weed *wd, int i, int n) {
     wd->ph = rndr(0, 6.28f);
     wd->amp = rndr(1.5f, 3.5f);
     wd->front = (i % 4 == 0);
-    float g = rndr(0.7f, 1.0f);
-    wd->c = wd->front ? col(20 * g, 90 * g, 50 * g) : col(35 * g, 150 * g, 80 * g);
+    wd->g = rndr(0.7f, 1.0f);   // brightness; color itself comes from the theme
 }
