@@ -50,7 +50,7 @@ static struct {
     int hist_pos, hist_n, view_off;
 } E;
 
-static struct { int fd; pid_t pid; int visible; } S = { -1, 0, 0 }; 
+static struct { int fd; pid_t pid; int visible; } S = { -1, 0, 0 };
 
 static const uint32_t ANSI[16] = {
     0x1e2028, 0xe05561, 0x98c379, 0xe5c07b, 0x61afef, 0xc678dd, 0x56b6c2, 0xabb2bf,
