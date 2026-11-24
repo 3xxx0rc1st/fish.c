@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "term.h"
+#include "shell.h"
 #include "vt.h"
 
 #include <errno.h>
@@ -19,6 +20,7 @@ static int raw_on = 0;
 
 void term_restore(void) {
     if (!raw_on) return;
+    shell_shutdown();   // the shell must not outlive the aquarium
     const char *s = "\x1b[?2026l\x1b[?1006l\x1b[?1000l\x1b[?7h\x1b[0m\x1b[?25h\x1b[?1049l";
     ssize_t r = write(STDOUT_FILENO, s, strlen(s));
     (void)r;
@@ -65,6 +67,15 @@ void term_init(void) {
     const char *s = "\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?1000h\x1b[?1006h\x1b[2J";
     ssize_t r = write(STDOUT_FILENO, s, strlen(s));
     (void)r;
+}
+
+void term_shell_mode(int on) {
+    struct termios t;
+    if (tcgetattr(STDIN_FILENO, &t) != 0) return;
+    const tcflag_t lf = ISIG | IEXTEN, inf = IXON | ICRNL | INLCR | IGNCR | ISTRIP;
+    if (on) { t.c_lflag &= ~lf; t.c_iflag &= ~inf; }
+    else { t.c_lflag = (t.c_lflag & ~lf) | (old_tio.c_lflag & lf); t.c_iflag = (t.c_iflag & ~inf) | (old_tio.c_iflag & inf); }
+    tcsetattr(STDIN_FILENO, TCSANOW, &t);
 }
 
 void term_size(void) {

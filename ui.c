@@ -6,12 +6,13 @@
 
 #include "gfx.h"
 #include "sprite.h"
+#include "shell.h"
 #include "theme.h"
 #include "vt.h"
 
 // start screen
 #define BOX_W 38
-#define BOX_H 16
+#define BOX_H 17
 
 static void intro_geom(int *bx, int *by) {
     *bx = (gfx_cols - BOX_W) / 2;
@@ -67,17 +68,18 @@ static void intro_text(float t, const Theme *th) {
         {"k / right-click", "k", "kill a fish"},
         {"t / T", "t / T", "switch palette"},
         {"b", "b", "launch bubbles"},
+        {"s / F12", "s / F12", "shell overlay"},
         {"q", "q", "quit"},
     };
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 7; i++) {
         text_put(2, bx + 3, by + 4 + i, vt_active ? help[i].kv : help[i].k, key, 1.0f);
         text_put(2, bx + 3 + 16, by + 4 + i, help[i].d, desc, 1.0f);
     }
 
     const char *copyright = "Created by 3xxx0rc1st";
-    text_put(2, bx + (BOX_W - utf8_len(copyright)) / 2, by + 11, copyright, cr, 1.0f);
+    text_put(2, bx + (BOX_W - utf8_len(copyright)) / 2, by + 12, copyright, cr, 1.0f);
     const char *year = vt_active ? "(c) 2026" : "© 2026";
-    text_put(2, bx + (BOX_W - utf8_len(year)) / 2, by + 12, year, cr, 1.0f);
+    text_put(2, bx + (BOX_W - utf8_len(year)) / 2, by + 13, year, cr, 1.0f);
 
     const char *prompt = "press any key";
     float blink = 0.55f + 0.45f * sinf(t * 3.0f);   // blinking prompt
@@ -88,6 +90,8 @@ static void intro_text(float t, const Theme *th) {
 static void overlays(const World *w, float alpha, float fps, const Theme *th) {
     int cols = gfx_cols, rows = gfx_rows;
 
+    int sh = shell_visible();   // under the shell panel the water is quiet: no scrolling lines and tags
+
     // layers 0 and 1: scrolling lines move toward each other, one line each,
     // intersect and mix
     const char *s0 = "A Q U A R I U M";
@@ -95,13 +99,15 @@ static void overlays(const World *w, float alpha, float fps, const Theme *th) {
     float l0 = (float)strlen(s0), l1 = (float)strlen(s1);
     float x0 = fmodf(w->t * 2.5f, cols + l0 + 10) - l0;
     float x1 = cols - fmodf(w->t * 4.0f, cols + l1 + 10);
-    text_putf(0, x0, rows / 3, s0, col(200, 240, 255), 0.45f);
-    text_putf(1, x1, rows / 3, s1, col(255, 230, 160), 0.60f);
+    if (!sh) {
+        text_putf(0, x0, rows / 3, s0, col(200, 240, 255), 0.45f);
+        text_putf(1, x1, rows / 3, s1, col(255, 230, 160), 0.60f);
+    }
 
     // fish tags (layer 1)
     for (int i = 0; i < w->nfish; i++) {
         const Fish *f = &w->fish[i];
-        if (f->dying) continue;
+        if (f->dying || sh) continue;
         float fx = f->px + (f->x - f->px) * alpha;
         float fy = f->py + (f->y - f->py) * alpha;
         int len = (int)strlen(f->name);
@@ -111,7 +117,9 @@ static void overlays(const World *w, float alpha, float fps, const Theme *th) {
 
     // HUD (layer 2): keys on the left, status on the right (dropped if it does not fit)
     char keys[96], stat[64];
-    snprintf(keys, sizeof keys, " q quit | space feed | f +fish | k kill | t theme | b bubbles ");
+    if (sh) snprintf(keys, sizeof keys, " F12 / Ctrl-] hide shell | Shift-PgUp, wheel: history | exit: close ");
+    else snprintf(keys, sizeof keys, " q quit | space feed | f +fish | k kill | t theme | b bubbles | s shell%s ",
+        shell_running() ? "*" : "");
     snprintf(stat, sizeof stat, " %d fish | %s | %2.0f fps ", world_fish_alive(w), theme_name(theme_idx()), fps);
     text_put(2, 0, rows - 1, keys, th->ui_title, 0.90f);
     int sl = (int)strlen(stat);
@@ -119,12 +127,13 @@ static void overlays(const World *w, float alpha, float fps, const Theme *th) {
 
     // palette name toast after a switch
     float age = theme_age();
-    if (age < 2.2f) {
+    if (age < 2.2f && !sh) {
         char toast[64];
         snprintf(toast, sizeof toast, " palette: %s [%d/%d] ", theme_name(theme_idx()), theme_idx() + 1, theme_count());
         float a = clampf((2.2f - age) / 0.7f, 0, 1);
         text_put(2, (cols - (int)strlen(toast)) / 2, 2, toast, th->ui_title, a);
     }
+    if (sh) shell_draw();
 }
 
 void ui_draw(const World *w, float alpha, int intro, float fps) {

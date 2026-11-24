@@ -23,6 +23,7 @@ No GUI frameworks, no heavyweight dependencies, no unnecessary abstraction. Just
 - **Differential rendering** - redraws only changed portions of the frame to reduce unnecessary terminal output.
 - **Color palettes** - multiple visual themes for different aquarium aesthetics. See [assets](assets) for screenshots.
 - **Lightweight** - a small native executable with minimal runtime dependencies.
+- **Integrated terminal** - launch an interactive `$SHELL` session inside a translucent terminal panel rendered directly over the aquarium. Supports pseudo-terminal communication, ANSI escape sequences, scrollback, and background aquarium animation.
 
 ## Requirements
 
@@ -110,6 +111,9 @@ make install DESTDIR=/tmp/fish-root
 | `K` / `k` | Remove a fish |
 | `T` / `t` | Cycle through color palettes |
 | `B` / `b` | Release bubbles |
+| `S` / `s` | Show or hide the integrated terminal |
+| `F12` / `Ctrl-]` | Hide the terminal panel |
+| `Shift-PgUp` / `Shift-PgDn` | Scroll terminal history |
 | `Q` / `q` | Quit the aquarium |
 
 ### Mouse
@@ -118,6 +122,40 @@ make install DESTDIR=/tmp/fish-root
 |---|---|
 | Left click | Drop food at the cursor position |
 | Right click | Remove a fish at the cursor position |
+
+## Integrated terminal
+
+`fish.c` features a built-in terminal emulator that allows users to interact with their system shell without leaving the aquarium.
+
+Press `S` / `s` to open the terminal panel. On its first activation, the application spawns the user's `$SHELL` inside a pseudo-terminal (PTY). Subsequent activations show or hide the existing session without terminating it.
+
+Unlike a conventional shell launcher, the integrated terminal does not suspend the aquarium simulation. Fish continue swimming, environmental animations remain active, and the terminal is rendered as a translucent overlay above the underwater scene.
+
+### Terminal capabilities
+
+The built-in terminal emulator implements a subset of the xterm terminal specification, including:
+
+- Pseudo-terminal (PTY) communication.
+- ANSI escape sequence processing.
+- 16/256-color terminal rendering.
+- Cursor positioning and visibility.
+- Scrolling regions.
+- Alternate screen buffer support.
+- Scrollback history.
+- Mouse wheel and keyboard-based history navigation.
+- Terminal resizing.
+- Transparent panel compositing over the aquarium.
+
+### Interaction
+
+- `S` / `s` - Show or hide the terminal panel.
+- `F12` / `Ctrl-]` - Hide the terminal panel.
+- `Shift-PgUp` / `Shift-PgDn` - Scroll through terminal history.
+- Mouse wheel - Navigate terminal history when the panel is visible.
+
+The shell process remains alive while the terminal panel is hidden. It terminates when the shell exits or the aquarium shuts down.
+
+The implementation relies on POSIX pseudo-terminals and process management, with no external terminal emulation libraries or additional runtime dependencies.
 
 ## Under the hood
 
@@ -131,6 +169,10 @@ Its rendering architecture includes:
 - Subpixel-level rendering.
 - Frame differencing to minimize terminal updates.
 - Time-based animation and frame pacing.
+- PTY-based process management.
+- Embedded terminal emulator.
+- Layered terminal compositing.
+- Independent shell lifecycle.
 
 The goal is to keep rendering efficient while maintaining smooth animation and a visually interesting aquarium.
 
@@ -138,12 +180,15 @@ The goal is to keep rendering efficient while maintaining smooth animation and a
 
 The project deliberately keeps its runtime dependency footprint small.
 
+
 The resulting executable links against:
 
 - `libc`
 - `libm`
 
-No external graphics libraries or GUI toolkits are required.
+The integrated terminal uses native POSIX interfaces for pseudo-terminal creation, process management, and terminal I/O.
+
+No external terminal emulation libraries are required.
 
 ## License
 

@@ -13,6 +13,8 @@ extern int term_cols, term_rows;
 void term_init(void);       // raw mode, alt-screen, mouse, signal handlers
 void term_restore(void);    // idempotent; hangs on atexit and crashes
 void term_size(void);       // update term_cols/term_rows
+// on: keys go to the shell as they are (no Ctrl-C/Z/\ signals, no XON/XOFF, Enter = CR); off: aquarium mode
+void term_shell_mode(int on);
 
 // Output buffer: frame renders whole and goes in one write()
 void ob_reset(void);

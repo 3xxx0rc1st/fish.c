@@ -42,6 +42,8 @@ int utf8_len(const char *s);            // length in codepoints
 void text_clear(void);
 // overlay and opacity
 void text_put(int layer, int x, int y, const char *s, Col c, float a);
+// one codepoint into a cell, replaces what is there (used by the shell panel)
+void text_cell(int layer, int x, int y, uint32_t cp, Col c, float a);
 // float X: two neighboring cells with crossfade - text "floats" without rips
 void text_putf(int layer, float xf, int y, const char *s, Col c, float a);
 

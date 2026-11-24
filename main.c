@@ -1,8 +1,11 @@
 // fish - terminal aquarium in C
-// make && ./fish [-f fps] [-t theme] [-s seed] [-T] [-l]
+// make && ./fish [-f fps] [-t theme] [-s seed] [-T] [-l]   (s / F12 - shell over the water)
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <math.h>
+#include <poll.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -10,6 +13,7 @@
 #include "gfx.h"
 #include "input.h"
 #include "scene.h"
+#include "shell.h"
 #include "term.h"
 #include "ui.h"
 #include "theme.h"
@@ -20,6 +24,27 @@
 #define SIM_DT (1.0f / 60.0f) // fixed simulation step
 
 static World world;
+
+// Sleep until the next frame, but stay awake for the shell: its output goes into the
+// emulator at once, and while the panel is open typing is forwarded immediately and a
+// frame is drawn soon after (not at the next 1/fps tick) - so echo does not lag.
+static void wait_frame(double start, double target, int *intro) {
+    const double min_gap = target / 3;
+    for (;;) {
+        double left = start + target - now_s();
+        if (left <= 0 || term_quit || term_resized) return;
+        struct pollfd pf[2];
+        int n = 0, shown = shell_visible();
+        if (shell_fd() >= 0) pf[n++] = (struct pollfd){shell_fd(), POLLIN, 0};
+        if (shown) pf[n++] = (struct pollfd){STDIN_FILENO, POLLIN, 0};
+        int r = poll(pf, (nfds_t)n, (int)ceil(left * 1000.0));
+        if (r < 0 && errno != EINTR) return;
+        if (r <= 0) continue;
+        if (shown && (pf[n - 1].revents & POLLIN)) input_poll(&world, intro);
+        shell_pump();
+        if (shell_visible() && now_s() - start >= min_gap) return;
+    }
+}
 
 static void usage(FILE *o) {
     fprintf(o,
@@ -82,8 +107,10 @@ int main(int argc, char **argv) {
             term_size();
             gfx_resize(term_cols, term_rows);
             world_resize(&world, gfx_w, gfx_h);
+            shell_resize();
         }
         input_poll(&world, &intro);
+        shell_pump();
         theme_update((float)dt);
         if (vt_active) {
             Col pal[16];
@@ -103,12 +130,7 @@ int main(int argc, char **argv) {
 
         if (dt > 1e-4) fps = fps * 0.95f + (float)(1.0 / dt) * 0.05f;
 
-        double target = 1.0 / fps_target, el = now_s() - start;
-        if (el < target) {
-            double s = target - el;
-            struct timespec ts = {(time_t)s, (long)((s - (time_t)s) * 1e9)};
-            nanosleep(&ts, NULL);
-        }
+        wait_frame(start, 1.0 / fps_target, &intro);
     }
     term_restore();
     return 0;

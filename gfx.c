@@ -87,6 +87,12 @@ void text_put(int layer, int x, int y, const char *s, Col c, float a) {
     }
 }
 
+void text_cell(int layer, int x, int y, uint32_t cp, Col c, float a) {
+    if (x < 0 || y < 0 || x >= gfx_cols || y >= gfx_rows || cp <= ' ') return;
+    TCell *t = &tl[layer][y * gfx_cols + x];
+    t->ch = cp; t->c = c; t->a = a;
+}
+
 void text_putf(int layer, float xf, int y, const char *s, Col c, float a) {
     int xi = (int)floorf(xf);
     float fr = xf - xi;

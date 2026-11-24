@@ -102,7 +102,7 @@ uint32_t vt_map_cp(uint32_t cp) {
             case 0x2514: return VT_G_BL;   case 0x2518: return VT_G_BR;
             case 0x2500: return VT_G_H;    case 0x2502: return VT_G_V;
         }
-        return '?';
+        return cp;      // anything else (e.g. cyrillic in the shell): the kernel's own unicode map decides
     }
     return cp;
 }
