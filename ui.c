@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "gfx.h"
 #include "sprite.h"
@@ -86,6 +87,27 @@ static void intro_text(float t, const Theme *th) {
     text_put(2, bx + (BOX_W - utf8_len(prompt)) / 2, by + BOX_H - 2, prompt, th->ui_prompt, blink);
 }
 
+// system clock
+static const char *clock_get(void) {
+    static char clock[16] = "--:--:--";
+    static time_t last_update = (time_t)-1;
+
+    time_t now = time(NULL);
+
+    if (now != last_update) {
+        struct tm *tm = localtime(&now);
+
+        if (tm)
+            strftime(clock, sizeof clock, "%H:%M:%S", tm);
+        else
+            snprintf(clock, sizeof clock, "--:--:--");
+
+        last_update = now;
+    }
+
+    return clock;
+}
+
 // regular overlays
 static void overlays(const World *w, float alpha, float fps, const Theme *th) {
     int cols = gfx_cols, rows = gfx_rows;
@@ -116,14 +138,19 @@ static void overlays(const World *w, float alpha, float fps, const Theme *th) {
     }
 
     // HUD (layer 2): keys on the left, status on the right (dropped if it does not fit)
-    char keys[96], stat[64];
-    if (sh) snprintf(keys, sizeof keys, " F12 / Ctrl-] hide shell | Shift-PgUp, wheel: history | exit: close ");
-    else snprintf(keys, sizeof keys, " q quit | space feed | f +fish | k kill | t theme | b bubbles | s shell%s ",
-        shell_running() ? "*" : "");
-    snprintf(stat, sizeof stat, " %d fish | %s | %2.0f fps ", world_fish_alive(w), theme_name(theme_idx()), fps);
+    char keys[96], stat[128];
+    const char *clock = clock_get();
+    if (sh)
+        snprintf(keys, sizeof keys, " F12 / Ctrl-] hide shell | Shift-PgUp, wheel: history | exit: close ");
+    else
+        snprintf(keys, sizeof keys, " q quit | space feed | f +fish | k kill | t theme | b bubbles | s shell%s ",
+                shell_running() ? "*" : "");
+    snprintf(stat, sizeof stat, " %s | %d fish | %s | %2.0f fps ",
+            clock, world_fish_alive(w), theme_name(theme_idx()), fps);
     text_put(2, 0, rows - 1, keys, th->ui_title, 0.90f);
     int sl = (int)strlen(stat);
-    if (cols - sl > (int)strlen(keys)) text_put(2, cols - sl, rows - 1, stat, th->ui_title, 0.90f);
+    if (cols - sl > (int)strlen(keys))
+        text_put(2, cols - sl, rows - 1, stat, th->ui_title, 0.90f);
 
     // palette name toast after a switch
     float age = theme_age();
