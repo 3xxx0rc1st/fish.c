@@ -91,20 +91,15 @@ static void intro_text(float t, const Theme *th) {
 static const char *clock_get(void) {
     static char clock[16] = "--:--:--";
     static time_t last_update = (time_t)-1;
-
     time_t now = time(NULL);
-
     if (now != last_update) {
         struct tm *tm = localtime(&now);
-
         if (tm)
             strftime(clock, sizeof clock, "%H:%M:%S", tm);
         else
             snprintf(clock, sizeof clock, "--:--:--");
-
         last_update = now;
     }
-
     return clock;
 }
 
