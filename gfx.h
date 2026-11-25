@@ -18,6 +18,11 @@ extern Col *gfx_px;             // canvas, gfx_w X gfx_h
 void gfx_resize(int cols, int rows);    // recreates buffers, forces full redraw
 void gfx_present(void);                 // canvas + text -> cells -> diff -> one write()
 
+// Truecolor only: a plain background cell whose colors on screen are within this many levels
+// (0..255, per channel) of the wanted ones is not redrawn. Cuts terminal traffic a lot: the water
+// shimmer changes many cells by a level or two each frame. 0 = exact.
+extern int gfx_tol;
+
 // mix c color with pixel with multiplier a
 static inline void gfx_blend(int x, int y, Col c, float a) {
     if (x < 0 || y < 0 || x >= gfx_w || y >= gfx_h || a <= 0.0f) return;

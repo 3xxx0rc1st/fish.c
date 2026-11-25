@@ -13,13 +13,15 @@ typedef struct { uint32_t ch; uint8_t fr, fg, fb, br, bg, bb; uint8_t pad[2]; } 
 typedef struct { uint32_t ch; Col c; float a; } TCell;
 
 int gfx_cols, gfx_rows, gfx_w, gfx_h;
+int gfx_tol = 0;    // truecolor diff tolerance (0 = exact), see gfx.h
 Col *gfx_px = NULL;
 
 static Cell *front = NULL, *back = NULL;
 static TCell *tl[GFX_NTL];
+static uint8_t *trow;      // trow[y] != 0: some text layer has a cell in row y (most rows are empty)
 
 void gfx_resize(int cols, int rows) {
-    free(gfx_px); free(front); free(back);
+    free(gfx_px); free(front); free(back); free(trow);
     for (int i = 0; i < GFX_NTL; i++) free(tl[i]);
 
     gfx_cols = cols;
@@ -32,7 +34,8 @@ void gfx_resize(int cols, int rows) {
     front = calloc(n, sizeof(Cell));
     back = calloc(n, sizeof(Cell));
     for (int i = 0; i < GFX_NTL; i++) tl[i] = calloc(n, sizeof(TCell));
-    if (!gfx_px || !front || !back) abort();
+    trow = calloc((size_t)rows, 1);
+    if (!gfx_px || !front || !back || !trow) abort();
     for (size_t i = 0; i < n; i++) front[i].ch = 0xFFFFFFFFu;   // force full redraw
 
     OB_LIT("\x1b[0m\x1b[2J");
@@ -69,11 +72,16 @@ int utf8_len(const char *s) {
 }
 
 void text_clear(void) {
-    for (int i = 0; i < GFX_NTL; i++) memset(tl[i], 0, (size_t)gfx_cols * gfx_rows * sizeof(TCell));
+    for (int y = 0; y < gfx_rows; y++) {
+        if (!trow[y]) continue;
+        for (int i = 0; i < GFX_NTL; i++) memset(&tl[i][(size_t)y * gfx_cols], 0, (size_t)gfx_cols * sizeof(TCell));
+        trow[y] = 0;
+    }
 }
 
 void text_put(int layer, int x, int y, const char *s, Col c, float a) {
     if (a < 0.02f || y < 0 || y >= gfx_rows) return;
+    trow[y] = 1;
     while (*s) {
         uint32_t cp = utf8_next(&s);
         if (x >= gfx_cols) break;
@@ -89,6 +97,7 @@ void text_put(int layer, int x, int y, const char *s, Col c, float a) {
 
 void text_cell(int layer, int x, int y, uint32_t cp, Col c, float a) {
     if (x < 0 || y < 0 || x >= gfx_cols || y >= gfx_rows || cp <= ' ') return;
+    trow[y] = 1;
     TCell *t = &tl[layer][y * gfx_cols + x];
     t->ch = cp; t->c = c; t->a = a;
 }
@@ -222,6 +231,53 @@ static void compose_tc(int x, int y, Cell *c, const TCell *out) {
     }
 }
 
+// Is the cell on screen (a) close enough to the wanted one (b) to not bother the terminal?
+// Only plain background cells (' ' or half-block) qualify; glyphs and text are always exact.
+static inline int cell_close(const Cell *a, const Cell *b, int tol) {
+    if (a->ch != b->ch) return 0;
+    if (a->ch != ' ' && a->ch != 0x2580) return 0;
+    #define CL(u, v) ((u) > (v) ? (u) - (v) <= tol : (v) - (u) <= tol)
+    if (!(CL(a->br, b->br) && CL(a->bg, b->bg) && CL(a->bb, b->bb))) return 0;
+    if (a->ch == ' ') return 1;     // foreground is not drawn
+    return CL(a->fr, b->fr) && CL(a->fg, b->fg) && CL(a->fb, b->fb);
+    #undef CL
+}
+
+// ---- fast escape-sequence emitters -------------------------------------------------------
+// A changed cell is assembled in a small stack buffer (no per-number buffer checks) and handed
+// to the output buffer with one ob_str(). Decimal bytes come from a 256-entry table.
+static char    u8s[256][3];
+static uint8_t u8n[256];
+
+static void u8_init(void) {
+    for (int v = 0; v < 256; v++) {
+        char t[3]; int n = 0, x = v;
+        do { t[n++] = (char)('0' + x % 10); x /= 10; } while (x);
+        for (int i = 0; i < n; i++) u8s[v][i] = t[n - 1 - i];
+        u8n[v] = (uint8_t)n;
+    }
+}
+
+static inline char *put_u8(char *p, unsigned v) {
+    memcpy(p, u8s[v], 3);           // always copy 3 (buffer has slack), advance by the real length
+    return p + u8n[v];
+}
+
+static inline char *put_uint(char *p, unsigned v) {
+    if (v < 256) return put_u8(p, v);
+    char t[10]; int n = 0;
+    do { t[n++] = (char)('0' + v % 10); v /= 10; } while (v);
+    while (n) *p++ = t[--n];
+    return p;
+}
+
+static inline char *put_rgb(char *p, int is_bg, const uint8_t *c) {
+    memcpy(p, is_bg ? "48;2;" : "38;2;", 5); p += 5;
+    p = put_u8(p, c[0]); *p++ = ';';
+    p = put_u8(p, c[1]); *p++ = ';';
+    return put_u8(p, c[2]);
+}
+
 void gfx_present(void) {
     const int vt = vt_active;
 
@@ -234,7 +290,7 @@ void gfx_present(void) {
 
             TCell out;
             memset(&out, 0, sizeof out);
-            for (int L = 0; L < GFX_NTL; L++) {
+            for (int L = 0; trow[y] && L < GFX_NTL; L++) {
                 const TCell *t = &tl[L][i];
                 if (!t->ch) continue;
                 if (out.ch) { out.c = lerpc(out.c, t->c, t->a); out.a = 1 - (1 - out.a) * (1 - t->a); }
@@ -251,6 +307,8 @@ void gfx_present(void) {
     ob_reset();
     if (vt) vt_palette_emit();
     else OB_LIT("\x1b[?2026h");   // synchronized update: without frame rips
+    if (!u8n[0]) u8_init();
+    const int tol = vt ? 0 : gfx_tol;
     int cx = -1, cy = -1;
     int fgv = 0, bgv = 0;
     uint8_t cfr = 0, cfg = 0, cfb = 0, cbr = 0, cbg = 0, cbb = 0;
@@ -258,39 +316,52 @@ void gfx_present(void) {
         for (int x = 0; x < gfx_cols; x++) {
             int i = y * gfx_cols + x;
             if (!memcmp(&back[i], &front[i], sizeof(Cell))) continue;
+            if (tol && cell_close(&front[i], &back[i], tol)) {
+                back[i] = front[i];     // keep what is really on screen: the error never accumulates past tol
+                continue;
+            }
             const Cell *c = &back[i];
+            char sb[112], *p = sb;
             if (cy != y || cx != x) {
-                OB_LIT("\x1b[");
-                ob_num((unsigned)y + 1); ob_c(';'); ob_num((unsigned)x + 1); ob_c('H');
+                *p++ = '\x1b'; *p++ = '[';
+                if (cy == y && x > cx) {                    // same row, to the right: CUF is shorter than CUP
+                    p = put_uint(p, (unsigned)(x - cx));
+                    *p++ = 'C';
+                } else {
+                    p = put_uint(p, (unsigned)y + 1); *p++ = ';';
+                    p = put_uint(p, (unsigned)x + 1); *p++ = 'H';
+                }
             }
             if (vt) {
                 // console: fg 0-15 (bright = bold), bg 0-7
                 int nf = c->ch != ' ' && (!fgv || cfr != c->fr);
                 int nb = !bgv || cbr != c->br;
                 if (nf || nb) {
-                    OB_LIT("\x1b[");
+                    *p++ = '\x1b'; *p++ = '[';
                     if (nf) {
-                        if (c->fr >= 8) OB_LIT("1;"); else OB_LIT("22;");
-                        ob_num(30u + (c->fr & 7u));
+                        if (c->fr >= 8) { *p++ = '1'; *p++ = ';'; } else { *p++ = '2'; *p++ = '2'; *p++ = ';'; }
+                        p = put_uint(p, 30u + (c->fr & 7u));
                         cfr = c->fr; fgv = 1;
                     }
-                    if (nf && nb) ob_c(';');
-                    if (nb) { ob_num(40u + c->br); cbr = c->br; bgv = 1; }
-                    ob_c('m');
+                    if (nf && nb) *p++ = ';';
+                    if (nb) { p = put_uint(p, 40u + c->br); cbr = c->br; bgv = 1; }
+                    *p++ = 'm';
                 }
             } else {
-                if (c->ch != ' ' && (!fgv || cfr != c->fr || cfg != c->fg || cfb != c->fb)) {
-                    OB_LIT("\x1b[38;2;");
-                    ob_num(c->fr); ob_c(';'); ob_num(c->fg); ob_c(';'); ob_num(c->fb); ob_c('m');
-                    cfr = c->fr; cfg = c->fg; cfb = c->fb; fgv = 1;
-                }
-                if (!bgv || cbr != c->br || cbg != c->bg || cbb != c->bb) {
-                    OB_LIT("\x1b[48;2;");
-                    ob_num(c->br); ob_c(';'); ob_num(c->bg); ob_c(';'); ob_num(c->bb); ob_c('m');
-                    cbr = c->br; cbg = c->bg; cbb = c->bb; bgv = 1;
+                int nf = c->ch != ' ' && (!fgv || cfr != c->fr || cfg != c->fg || cfb != c->fb);
+                int nb = !bgv || cbr != c->br || cbg != c->bg || cbb != c->bb;
+                if (nf || nb) {                             // one SGR for both colors
+                    *p++ = '\x1b'; *p++ = '[';
+                    if (nf) { p = put_rgb(p, 0, &c->fr); cfr = c->fr; cfg = c->fg; cfb = c->fb; fgv = 1; }
+                    if (nf && nb) *p++ = ';';
+                    if (nb) { p = put_rgb(p, 1, &c->br); cbr = c->br; cbg = c->bg; cbb = c->bb; bgv = 1; }
+                    *p++ = 'm';
                 }
             }
-            ob_cp(c->ch);
+            if (c->ch == ' ') *p++ = ' ';
+            else if (c->ch == 0x2580) { *p++ = (char)0xE2; *p++ = (char)0x96; *p++ = (char)0x80; }
+            else { ob_str(sb, (size_t)(p - sb)); ob_cp(c->ch); cx = x + 1; cy = y; continue; }
+            ob_str(sb, (size_t)(p - sb));
             cx = x + 1;
             cy = y;
         }

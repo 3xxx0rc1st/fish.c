@@ -52,6 +52,7 @@ static void usage(FILE *o) {
         "  -f fps    frame rate, 5..120 (default 30)\n"
         "  -t theme  start palette (see -l); 't' / 'T' switch it in the aquarium\n"
         "  -s seed   random seed\n"
+        "  -e level  truecolor redraw tolerance 0..32 (default 0 = exact); 4..8 cuts traffic a lot\n"
         "  -T        do not touch the Linux console (font, palette)\n"
         "  -l        list palettes\n");
 }
@@ -60,13 +61,14 @@ int main(int argc, char **argv) {
     int fps_target = 30, theme0 = 0, no_vt = 0, have_seed = 0;
     uint32_t seed = 0;
     int opt;
-    while ((opt = getopt(argc, argv, "f:t:s:Tlh")) != -1) {
+    while ((opt = getopt(argc, argv, "f:t:s:e:Tlh")) != -1) {
         switch (opt) {
             case 'f': fps_target = atoi(optarg); break;
             case 't':
                 theme0 = theme_find(optarg);
                 if (theme0 < 0) { fprintf(stderr, "fish: no such palette '%s' (see -l)\n", optarg); return 1; }
                 break;
+            case 'e': gfx_tol = atoi(optarg); if (gfx_tol < 0) gfx_tol = 0; if (gfx_tol > 32) gfx_tol = 32; break;
             case 's': seed = (uint32_t)strtoul(optarg, NULL, 10); have_seed = 1; break;
             case 'T': no_vt = 1; break;
             case 'l': for (int i = 0; i < theme_count(); i++) puts(theme_name(i)); return 0;

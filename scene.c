@@ -1,30 +1,86 @@
 #include "scene.h"
 
 #include <math.h>
+#include <stdlib.h>
 
 #include "gfx.h"
 #include "sprite.h"
 #include "theme.h"
 
+// Light rays: sin(x*A + t*B + y*C) is separable (angle-addition), so instead of 3 sinf() per
+// pixel we keep per-column / per-row sin+cos tables (rebuilt only on resize) and rotate the
+// column phase once per frame. Per pixel it is then 2 muls + 1 fma per ray.
+static float *bg_xs1, *bg_xc1, *bg_xs2, *bg_xc2, *bg_xs3, *bg_xc3;     // per column, static
+static float *bg_ys1, *bg_yc1, *bg_ys2, *bg_yc2;                       // per row, static
+static float *bg_a1s, *bg_a1c, *bg_a2s, *bg_a2c, *bg_surf;             // per column, per frame
+static int bg_w, bg_h;
+
+static void bg_tables(void) {
+    if (bg_w == gfx_w && bg_h == gfx_h && bg_xs1) return;
+    free(bg_xs1); free(bg_ys1);     // one block each: x-tables and y-tables
+    bg_w = gfx_w; bg_h = gfx_h;
+    float *xb = malloc(sizeof(float) * 11 * (size_t)bg_w);
+    float *yb = malloc(sizeof(float) * 4 * (size_t)bg_h);
+    if (!xb || !yb) abort();
+    bg_xs1 = xb;
+    bg_xc1 = xb + bg_w;       
+    bg_xs2 = xb + 2 * bg_w;   
+    bg_xc2 = xb + 3 * bg_w;
+    bg_xs3 = xb + 4 * bg_w;
+    bg_xc3 = xb + 5 * bg_w;
+    bg_a1s = xb + 6 * bg_w;
+    bg_a1c = xb + 7 * bg_w;
+    bg_a2s = xb + 8 * bg_w;
+    bg_a2c = xb + 9 * bg_w;
+    bg_surf = xb + 10 * bg_w;
+    bg_ys1 = yb;       
+    bg_yc1 = yb + bg_h;   
+    bg_ys2 = yb + 2 * bg_h;
+    bg_yc2 = yb + 3 * bg_h;
+    
+    for (int x = 0; x < bg_w; x++) {
+        bg_xs1[x] = sinf(x * 0.09f);  bg_xc1[x] = cosf(x * 0.09f);
+        bg_xs2[x] = sinf(x * 0.043f); bg_xc2[x] = cosf(x * 0.043f);
+        bg_xs3[x] = sinf(x * 0.2f);   bg_xc3[x] = cosf(x * 0.2f);
+    }
+    for (int y = 0; y < bg_h; y++) {
+        bg_ys1[y] = sinf(y * 0.03f);  bg_yc1[y] = cosf(y * 0.03f);
+        bg_ys2[y] = sinf(y * 0.02f);  bg_yc2[y] = cosf(y * 0.02f);
+    }
+}
+
 static void draw_background(float t, const Theme *th) {
+    bg_tables();
+    const float s1 = sinf(t * 0.35f), c1 = cosf(t * 0.35f);     // phase of ray set 1
+    const float s2 = sinf(-t * 0.20f), c2 = cosf(-t * 0.20f);   // ray set 2 (moves the other way)
+    const float s3 = sinf(t * 2.0f), c3 = cosf(t * 2.0f);       // surface ripple
+    for (int x = 0; x < gfx_w; x++) {
+        bg_a1s[x] = bg_xs1[x] * c1 + bg_xc1[x] * s1;   // sin(x*0.09 + t*0.35)
+        bg_a1c[x] = bg_xc1[x] * c1 - bg_xs1[x] * s1;   // cos(...)
+        bg_a2s[x] = bg_xs2[x] * c2 + bg_xc2[x] * s2;
+        bg_a2c[x] = bg_xc2[x] * c2 - bg_xs2[x] * s2;
+        bg_surf[x] = 1.5f + (bg_xs3[x] * c3 + bg_xc3[x] * s3) * 0.5f;
+    }
     float hy = fmaxf(8.0f, th->horizon * (float)(gfx_h - 1));   // where the gradient reaches the bottom color
     for (int y = 0; y < gfx_h; y++) {
         float v = clampf((float)y / hy, 0, 1);
         Col base = lerpc(th->water_top, th->water_bot, powf(v, th->grad_pow));
         float fall = (1 - v);
         fall = fall * fall;
+        const float y1s = bg_ys1[y], y1c = bg_yc1[y], y2s = bg_ys2[y], y2c = bg_yc2[y];
+        const float kf = 0.55f * fall;
+        Col *row = &gfx_px[y * gfx_w];
         for (int x = 0; x < gfx_w; x++) {
             // two sets of light rays swimming to different sides
-            float r1 = sinf(x * 0.09f + t * 0.35f + y * 0.03f) * 0.5f + 0.5f;
-            float r2 = sinf(x * 0.043f - t * 0.20f + y * 0.02f) * 0.5f + 0.5f;
+            float r1 = (bg_a1s[x] * y1c + bg_a1c[x] * y1s) * 0.5f + 0.5f;
+            float r2 = (bg_a2s[x] * y2c + bg_a2c[x] * y2s) * 0.5f + 0.5f;
             r1 *= r1; r1 *= r1;
             r2 *= r2; r2 *= r2;
-            float k = (r1 * 0.6f + r2 * 0.4f) * 0.55f * fall;
+            float k = (r1 * 0.6f + r2 * 0.4f) * kf;
             Col c = col(base.r + k * th->ray.r, base.g + k * th->ray.g, base.b + k * th->ray.b);
-            // water surface
-            float surf = 1.5f + sinf(x * 0.2f + t * 2.0f) * 0.5f;
-            if (y < surf) c = lerpc(c, th->surface, clampf(surf - y, 0, 1) * 0.5f);
-            gfx_px[y * gfx_w + x] = c;
+            // water surface: bg_surf is always in [1, 2], so only rows 0 and 1 are touched
+            if (y < 2 && y < bg_surf[x]) c = lerpc(c, th->surface, clampf(bg_surf[x] - y, 0, 1) * 0.5f);
+            row[x] = c;
         }
     }
 }
@@ -39,14 +95,31 @@ static void draw_sun(const Theme *th) {
     float Rg = R * 2.6f;    // glow radius: it fades to exactly 0 here, so the box we loop over is invisible
     int y0 = (int)floorf(cy - Rg), y1 = (int)ceilf(hy);
     int x0 = (int)floorf(cx - Rg), x1 = (int)ceilf(cx + Rg);
-    for (int y = y0; y <= y1; y++)
+    if (y0 < 0) y0 = 0;
+    if (x0 < 0) x0 = 0;
+    if (y1 > gfx_h - 1) y1 = gfx_h - 1;
+    if (x1 > gfx_w - 1) x1 = gfx_w - 1;
+    // exp(-(dx^2+dy^2)/K) = exp(-dx^2/K) * exp(-dy^2/K): one expf per column and per row, none per pixel
+    static float *ex = NULL;
+    static int ex_n = 0;
+    if (x1 - x0 + 1 > ex_n) {
+        ex_n = x1 - x0 + 1;
+        free(ex);
+        ex = malloc(sizeof(float) * (size_t)ex_n);
+        if (!ex) abort();
+    }
+    const float K = R * R * 2.2f;
+    for (int x = x0; x <= x1; x++) { float dx = x + 0.5f - cx; ex[x - x0] = expf(-(dx * dx) / K); }
+    for (int y = y0; y <= y1; y++) {
+        float dy = y + 0.5f - cy;
+        const float ey = expf(-(dy * dy) / K) * 0.30f;
+        const float v = clampf((y + 0.5f - (cy - R)) / (2 * R), 0, 1);
         for (int x = x0; x <= x1; x++) {
-            float dx = x + 0.5f - cx, dy = y + 0.5f - cy;
+            float dx = x + 0.5f - cx;
             float d = sqrtf(dx * dx + dy * dy);
-            float v = clampf((y + 0.5f - (cy - R)) / (2 * R), 0, 1);
             float win = clampf(1.0f - d / Rg, 0, 1);
             win = win * win * (3.0f - 2.0f * win);              // smoothstep window
-            float glow = expf(-(d * d) / (R * R * 2.2f)) * 0.30f * win;
+            float glow = ex[x - x0] * ey * win;
             gfx_blend(x, y, th->sun_b, glow * th->sun);
             float cover = clampf(R - d + 0.5f, 0, 1);
             if (cover <= 0) continue;
@@ -58,6 +131,7 @@ static void draw_sun(const Theme *th) {
             }
             gfx_blend(x, y, lerpc(th->sun_a, th->sun_b, v), cover * (1 - cut) * th->sun);
         }
+    }
 }
 
 // neon grid floor in perspective; lines run towards the viewer
@@ -75,13 +149,14 @@ static void draw_grid(float t, const Theme *th) {
         float cov_h = clampf(1.0f - px_h / 1.1f, 0, 1);
         float fade = clampf(d * 2.5f, 0, 1);
         float sc = gfx_w * 0.5f * (0.03f + d);                      // screen px per unit of world X
+        const float hglow = powf(1 - d, 6.0f) * 0.35f;              // horizon glow: depends on the row only
         for (int x = 0; x < gfx_w; x++) {
             float fx = ((x + 0.5f - cx) / sc) / 0.22f;           // vertical lines every 0.22 of the world X
             fx -= floorf(fx);
             float cov_v = clampf(1.0f - fminf(fx, 1 - fx) * sc * 0.22f / 1.5f, 0, 1);
             float cov = fmaxf(cov_h, cov_v) * fade;
             Col c = lerpc(th->grid_floor, th->grid_line, cov);
-            c = lerpc(c, th->water_bot, powf(1 - d, 6.0f) * 0.35f);  // glow at the horizon
+            c = lerpc(c, th->water_bot, hglow);                     // glow at the horizon
             gfx_blend(x, y, c, th->grid);
         }
     }
