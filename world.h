@@ -2,6 +2,7 @@
 #ifndef WORLD_H
 #define WORLD_H
 
+#include <math.h>
 #include "entity.h"
 
 struct World {
@@ -13,12 +14,18 @@ struct World {
     Food    food[MAX_FOOD];
     Weed    weed[MAX_WEED];
     int     nweed;
-    float   t;          // world's time, seconds
+    double  t;          // world's time, seconds. double on purpose: a float stops resolving 1/60 s
+                        // steps after ~12 h and freezes after ~6 days (ulp grows with t)
     float   vent_t[3];  // bottom bubble sources' timers
     int     w, h;
 };
 
 static inline float world_floor_y(const World *w)   { return (float)(w->h - 3); }       // top of the sand
+// phase in radians, in [0, 2*pi), of a wave sin(freq * t): reduced in double, so it stays exact at any uptime
+static inline float world_phase(const World *w, double freq) { return (float)fmod(w->t * freq, 6.283185307179586); }
+// fractional part of t * freq (a pattern with period 1 / freq)
+static inline float world_frac(const World *w, double freq)  { double v = w->t * freq; return (float)(v - floor(v)); }
+
 static inline float world_fish_ymax(const World *w)   { return (float)(w->h - 7); }    // fish doesn't swim under sand
 
 void world_init(World *w, int pw, int ph);

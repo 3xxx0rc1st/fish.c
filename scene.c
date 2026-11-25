@@ -49,11 +49,12 @@ static void bg_tables(void) {
     }
 }
 
-static void draw_background(float t, const Theme *th) {
+static void draw_background(const World *w, const Theme *th) {
     bg_tables();
-    const float s1 = sinf(t * 0.35f), c1 = cosf(t * 0.35f);     // phase of ray set 1
-    const float s2 = sinf(-t * 0.20f), c2 = cosf(-t * 0.20f);   // ray set 2 (moves the other way)
-    const float s3 = sinf(t * 2.0f), c3 = cosf(t * 2.0f);       // surface ripple
+    const float p1 = world_phase(w, 0.35), p2 = world_phase(w, -0.20), p3 = world_phase(w, 2.0);
+    const float s1 = sinf(p1), c1 = cosf(p1);                   // phase of ray set 1
+    const float s2 = sinf(p2), c2 = cosf(p2);                   // ray set 2 (moves the other way)
+    const float s3 = sinf(p3), c3 = cosf(p3);                   // surface ripple
     for (int x = 0; x < gfx_w; x++) {
         bg_a1s[x] = bg_xs1[x] * c1 + bg_xc1[x] * s1;   // sin(x*0.09 + t*0.35)
         bg_a1c[x] = bg_xc1[x] * c1 - bg_xs1[x] * s1;   // cos(...)
@@ -135,15 +136,16 @@ static void draw_sun(const Theme *th) {
 }
 
 // neon grid floor in perspective; lines run towards the viewer
-static void draw_grid(float t, const Theme *th) {
+static void draw_grid(const World *w, const Theme *th) {
     if (th->grid < 0.01f) return;
+    const float tg = world_frac(w, 0.6);                        // grid scroll: pattern period is 1 unit
     int y0 = (int)ceilf(th->horizon * (float)(gfx_h - 1));
     if (y0 >= gfx_h) return;
     float span = (float)(gfx_h - y0), cx = gfx_w * 0.5f;
     for (int y = y0; y < gfx_h; y++) {
         float d = ((float)y + 0.5f - y0) / span;                    // 0 at the horizon, 1 at the bottom
         float z = 1.0f / (d * 0.92f + 0.08f);
-        float ph = z * 0.55f - t * 0.6f;
+        float ph = z * 0.55f - tg;
         float fh = ph - floorf(ph);
         float px_h = fminf(fh, 1 - fh) / (0.55f * 0.92f * z * z / span);    // distance to the line in pixels
         float cov_h = clampf(1.0f - px_h / 1.1f, 0, 1);
@@ -178,6 +180,7 @@ static void draw_sand(const Theme *th) {
 }
 
 static void draw_weeds(const World *w, const Theme *th, int front_pass) {
+    const float sway_ph = world_phase(w, 1.3);                  // once per call, not per pixel
     float floor_y = world_floor_y(w);
     for (int i = 0; i < w->nweed; i++) {
         const Weed *wd = &w->weed[i];
@@ -187,7 +190,7 @@ static void draw_weeds(const World *w, const Theme *th, int front_pass) {
         float h = fmaxf(6.0f, wd->hf * gfx_h);
         for (float yy = floor_y; yy > floor_y - h; yy -= 1.0f) {
             float k = (floor_y - yy) / h;   // 0 at the root -> 1 at the top
-            float sway = sinf(w->t * 1.3f + wd->ph +k * 3.2f) * wd->amp * k;
+            float sway = sinf(sway_ph + wd->ph + k * 3.2f) * wd->amp * k;
             Col c = lerpc(wc, col(wc.r * 1.6f, wc.g * 1.4f, wc.b * 1.4f), k);
             gfx_splat(bx + sway, yy, c, 0.9f);
             gfx_splat(bx + sway + 1.0f, yy, c, 0.9f);
@@ -232,9 +235,9 @@ static void fish_look(const Theme *th, const Fish *f, FishPalette *p, float *rol
 
 void scene_draw(const World *w, float alpha) {
     const Theme *th = theme_cur();
-    draw_background(w->t, th);
+    draw_background(w, th);
     draw_sun(th);
-    draw_grid(w->t, th);
+    draw_grid(w, th);
     draw_sand(th);
     draw_weeds(w, th, 0);
 

@@ -44,7 +44,7 @@ static void hline(int x, int y, int w, const char *l, const char *m, const char 
     text_put(2, x, y, line, c, 1.0f);
 }
 
-static void intro_text(float t, const Theme *th) {
+static void intro_text(const World *w, const Theme *th) {
     int bx, by;
     intro_geom(&bx, &by);
     Col frame = th->ui_frame, title = th->ui_title, description = th->ui_sub, cr = th->ui_dim;
@@ -83,7 +83,7 @@ static void intro_text(float t, const Theme *th) {
     text_put(2, bx + (BOX_W - utf8_len(year)) / 2, by + 13, year, cr, 1.0f);
 
     const char *prompt = "press any key";
-    float blink = 0.55f + 0.45f * sinf(t * 3.0f);   // blinking prompt
+    float blink = 0.55f + 0.45f * sinf(world_phase(w, 3.0));   // blinking prompt
     text_put(2, bx + (BOX_W - utf8_len(prompt)) / 2, by + BOX_H - 2, prompt, th->ui_prompt, blink);
 }
 
@@ -114,8 +114,8 @@ static void overlays(const World *w, float alpha, float fps, const Theme *th) {
     const char *s0 = "A Q U A R I U M";
     const char *s1 = "~ glub glub ~";
     float l0 = (float)strlen(s0), l1 = (float)strlen(s1);
-    float x0 = fmodf(w->t * 2.5f, cols + l0 + 10) - l0;
-    float x1 = cols - fmodf(w->t * 4.0f, cols + l1 + 10);
+    float x0 = (float)fmod(w->t * 2.5, cols + l0 + 10) - l0;
+    float x1 = cols - (float)fmod(w->t * 4.0, cols + l1 + 10);
     if (!sh) {
         text_putf(0, x0, rows / 3, s0, col(200, 240, 255), 0.45f);
         text_putf(1, x1, rows / 3, s1, col(255, 230, 160), 0.60f);
@@ -163,7 +163,7 @@ void ui_draw(const World *w, float alpha, int intro, float fps) {
     text_clear();
     if (intro) {
         intro_backdrop(th);
-        intro_text(w->t, th);
+        intro_text(w, th);
         return;
     }
     overlays(w, alpha, fps, th);
