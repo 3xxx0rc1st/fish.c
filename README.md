@@ -3,7 +3,7 @@
 **A tiny animated aquarium written in C.**
 
 <p align="center">
-  <img src="assets/screenshot1.png" alt="fish.c aquarium screenshot" width="800">
+  <img src="assets/demo.gif" alt="fish.c aquarium demo" width="800">
 </p>
 
 `fish.c` is a terminal-based aquarium simulation built with C. It brings a small underwater world to your terminal, featuring animated fish, food particles, and a custom rendering system.
