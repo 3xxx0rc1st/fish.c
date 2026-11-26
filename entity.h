@@ -22,6 +22,7 @@ typedef struct {
     int dir, hunting;
     int pile;           // heap of food this fish goes to (0 - none), kept until the heap is gone
     int ci;             // color index in the theme (palette is taken at draw time)
+    int kind;           // sprite variant: looks only, all kinds move and eat the same
     int dying, dead;    // dying: floats up belly-up, dead: remove from the world
     float dtime;        // seconds since death
     const char *name;

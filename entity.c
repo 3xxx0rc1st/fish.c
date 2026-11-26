@@ -29,6 +29,7 @@ void fish_init(Fish *f, const World *w) {
     f->spd = rndr(11, 18);
     f->bt = rndr(1, 4);
     f->ci = w->spawned % THEME_FISH;
+    f->kind = w->spawned % SPR_KINDS;     // no rnd(): the random stream (and so -s seeds) stays as it was
     f->name = pick_name(w);
 }
 

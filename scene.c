@@ -246,7 +246,7 @@ void scene_draw(const World *w, float alpha) {
         FishPalette pal;
         float roll, opac;
         fish_look(th, f, &pal, &roll, &opac);
-        sprite_draw_fish(&pal, f->px + (f->x - f->px) * alpha, f->py + (f->y - f->py) * alpha,
+        sprite_draw_fish(f->kind, &pal, f->px + (f->x - f->px) * alpha, f->py + (f->y - f->py) * alpha,
             f->face, f->phase, roll, opac);
     }
     for (int i = 0; i < MAX_FOOD; i++)
