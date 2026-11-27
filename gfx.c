@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "kgp.h"
 #include "term.h"
 #include "vt.h"
 
@@ -36,10 +37,17 @@ void gfx_resize(int cols, int rows) {
     for (int i = 0; i < GFX_NTL; i++) tl[i] = calloc(n, sizeof(TCell));
     trow = calloc((size_t)rows, 1);
     if (!gfx_px || !front || !back || !trow) abort();
-    for (size_t i = 0; i < n; i++) front[i].ch = 0xFFFFFFFFu;   // force full redraw
+    // force full redraw; with the kitty image underneath a cleared screen already is the blank state
+    for (size_t i = 0; i < n; i++) front[i].ch = kgp_active && !vt_active ? ' ' : 0xFFFFFFFFu;
 
     OB_LIT("\x1b[0m\x1b[2J");
+    kgp_emit_clear();       // an image of the old size must not stay (no-op without the backend)
     ob_flush();
+}
+
+// everything on screen is unknown: the next present draws every cell
+static void invalidate_front(void) {
+    for (size_t i = 0, n = (size_t)gfx_cols * gfx_rows; i < n; i++) front[i].ch = 0xFFFFFFFFu;
 }
 
 void gfx_splat(float x, float y, Col c, float a) {
@@ -231,6 +239,19 @@ static void compose_tc(int x, int y, Cell *c, const TCell *out) {
     }
 }
 
+// Kitty image mode: the canvas is the image under the cells, so a cell exists only where there is text:
+// the glyph in the color it has over the local background; the cell background stays the default,
+// the image shows through. No text = a blank cell (and a cell that lost its text is blanked).
+static void compose_kgp(int x, int y, Cell *c, const TCell *out) {
+    c->ch = ' ';
+    if (!out->ch) return;
+    Col top = gfx_px[(2 * y) * gfx_w + x], bot = gfx_px[(2 * y + 1) * gfx_w + x];
+    Col bg = lerpc(top, bot, 0.5f);
+    Col fg = lerpc(bg, out->c, clampf(out->a, 0, 1));
+    c->ch = out->ch;
+    c->fr = q8(fg.r); c->fg = q8(fg.g); c->fb = q8(fg.b);
+}
+
 // Is the cell on screen (a) close enough to the wanted one (b) to not bother the terminal?
 // Only plain background cells (' ' or half-block) qualify; glyphs and text are always exact.
 static inline int cell_close(const Cell *a, const Cell *b, int tol) {
@@ -280,6 +301,11 @@ static inline char *put_rgb(char *p, int is_bg, const uint8_t *c) {
 
 void gfx_present(void) {
     const int vt = vt_active;
+    int kg = !vt && kgp_active;
+    if (kg && !kgp_frame(gfx_px, gfx_w, gfx_h, gfx_cols, gfx_rows)) {   // no shared memory after all: the backend is off for good,
+        kg = 0;                                     // draw this frame (and the rest) with half-blocks
+        invalidate_front();
+    }
 
     // 1. canvas + text -> back[]
     for (int y = 0; y < gfx_rows; y++)
@@ -299,6 +325,7 @@ void gfx_present(void) {
             }
 
             if (vt) compose_vt(x, y, &c, &out);
+            else if (kg) compose_kgp(x, y, &c, &out);
             else compose_tc(x, y, &c, &out);
             back[i] = c;
         }
@@ -307,8 +334,10 @@ void gfx_present(void) {
     ob_reset();
     if (vt) vt_palette_emit();
     else OB_LIT("\x1b[?2026h");   // synchronized update: without frame rips
+    if (kg) kgp_emit(gfx_cols, gfx_rows);
+    else kgp_emit_clear();          // only does something right after the backend gave up
     if (!u8n[0]) u8_init();
-    const int tol = vt ? 0 : gfx_tol;
+    const int tol = (vt || kg) ? 0 : gfx_tol;
     int cx = -1, cy = -1;
     int fgv = 0, bgv = 0;
     uint8_t cfr = 0, cfg = 0, cfb = 0, cbr = 0, cbg = 0, cbb = 0;
@@ -345,6 +374,14 @@ void gfx_present(void) {
                     }
                     if (nf && nb) *p++ = ';';
                     if (nb) { p = put_uint(p, 40u + c->br); cbr = c->br; bgv = 1; }
+                    *p++ = 'm';
+                }
+            } else if (kg) {
+                // text over the image: only the foreground, the background stays the default
+                int nf = c->ch != ' ' && (!fgv || cfr != c->fr || cfg != c->fg || cfb != c->fb);
+                if (nf) {
+                    *p++ = '\x1b'; *p++ = '[';
+                    p = put_rgb(p, 0, &c->fr); cfr = c->fr; cfg = c->fg; cfb = c->fb; fgv = 1;
                     *p++ = 'm';
                 }
             } else {

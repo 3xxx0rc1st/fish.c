@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "term.h"
+#include "kgp.h"
 #include "shell.h"
 #include "vt.h"
 
@@ -21,6 +22,7 @@ static int raw_on = 0;
 void term_restore(void) {
     if (!raw_on) return;
     shell_shutdown();   // the shell must not outlive the aquarium
+    kgp_shutdown();     // the image and any shared memory the terminal did not take
     const char *s = "\x1b[?2026l\x1b[?1006l\x1b[?1000l\x1b[?7h\x1b[0m\x1b[?25h\x1b[?1049l";
     ssize_t r = write(STDOUT_FILENO, s, strlen(s));
     (void)r;

@@ -1,5 +1,5 @@
 // fish - terminal aquarium in C
-// make && ./fish [-f fps] [-t theme] [-s seed] [-T] [-l]   (s / F12 - shell over the water)
+// make && ./fish [-f fps] [-t theme] [-s seed] [-e level] [-g mode] [-T] [-l]   (s / F12 - shell over the water)
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +12,7 @@
 
 #include "gfx.h"
 #include "input.h"
+#include "kgp.h"
 #include "scene.h"
 #include "shell.h"
 #include "term.h"
@@ -48,20 +49,23 @@ static void wait_frame(double start, double target, int *intro) {
 
 static void usage(FILE *o) {
     fprintf(o,
-        "usage: fish [-f fps] [-t theme] [-s seed] [-T] [-l]\n"
+        "usage: fish [-f fps] [-t theme] [-s seed] [-e level] [-g mode] [-T] [-l]\n"
         "  -f fps    frame rate, 5..120 (default 30)\n"
         "  -t theme  start palette (see -l); 't' / 'T' switch it in the aquarium\n"
         "  -s seed   random seed\n"
         "  -e level  truecolor redraw tolerance 0..32 (default 0 = exact); 4..8 cuts traffic a lot\n"
+        "  -g mode   kitty graphics image for the water: auto (default: ask the terminal), on, off.\n"
+        "            Local terminals with the kitty protocol only (kitty, Ghostty, ...); the rest is unchanged\n"
         "  -T        do not touch the Linux console (font, palette)\n"
         "  -l        list palettes\n");
 }
 
 int main(int argc, char **argv) {
     int fps_target = 30, theme0 = 0, no_vt = 0, have_seed = 0;
+    KgpMode kmode = KGP_AUTO;
     uint32_t seed = 0;
     int opt;
-    while ((opt = getopt(argc, argv, "f:t:s:e:Tlh")) != -1) {
+    while ((opt = getopt(argc, argv, "f:t:s:e:g:Tlh")) != -1) {
         switch (opt) {
             case 'f': fps_target = atoi(optarg); break;
             case 't':
@@ -69,6 +73,12 @@ int main(int argc, char **argv) {
                 if (theme0 < 0) { fprintf(stderr, "fish: no such palette '%s' (see -l)\n", optarg); return 1; }
                 break;
             case 'e': gfx_tol = atoi(optarg); if (gfx_tol < 0) gfx_tol = 0; if (gfx_tol > 32) gfx_tol = 32; break;
+            case 'g':
+                if (!strcmp(optarg, "auto")) kmode = KGP_AUTO;
+                else if (!strcmp(optarg, "on")) kmode = KGP_ON;
+                else if (!strcmp(optarg, "off")) kmode = KGP_OFF;
+                else { fprintf(stderr, "fish: -g wants auto, on or off\n"); return 1; }
+                break;
             case 's': seed = (uint32_t)strtoul(optarg, NULL, 10); have_seed = 1; break;
             case 'T': no_vt = 1; break;
             case 'l': for (int i = 0; i < theme_count(); i++) puts(theme_name(i)); return 0;
@@ -88,6 +98,7 @@ int main(int argc, char **argv) {
 
     term_init();
     vt_init(!no_vt);    // Linux console: font + palette (restored in term_restore)
+    if (!vt_active) kgp_init(kmode);    // asks the terminal; the console has no use for it
     term_size();
     gfx_resize(term_cols, term_rows);
     world_init(&world, gfx_w, gfx_h);

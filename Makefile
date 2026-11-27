@@ -16,6 +16,9 @@ LDLIBS  ?=
 ALL_CFLAGS  := -std=gnu11 -Wall -Wextra $(CFLAGS)
 ALL_LDFLAGS := $(LDFLAGS)
 ALL_LDLIBS  := $(LDLIBS) -lm
+ifeq ($(shell uname -s),Linux)
+  ALL_LDLIBS += -lrt    # shm_open lives here on glibc < 2.34
+endif
  
 SRC   := $(sort $(wildcard *.c))
 OBJ   := $(SRC:%.c=$(BUILD_DIR)/%.o)
