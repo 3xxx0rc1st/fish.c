@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 #include "gfx.h"       // gfx_tol
+#include "kgp_platform.h"
 #include "term.h"
 
 int kgp_active = 0;
@@ -110,10 +111,10 @@ static int detect(void) {
 
     char probe[40], enc[96];
     snprintf(probe, sizeof probe, "/aquash-probe-%d", (int)getpid());
-    int fd = shm_open(probe, O_RDWR | O_CREAT | O_EXCL, 0600);
+    int fd = kgp_shm_open(probe, O_RDWR | O_CREAT | O_EXCL, 0600);
     if (fd < 0) return 0;
     static const unsigned char px[3] = {0, 0, 0};
-    if (ftruncate(fd, 3) != 0 || write(fd, px, 3) != 3) { close(fd); shm_unlink(probe); return 0; }
+    if (ftruncate(fd, 3) != 0 || write(fd, px, 3) != 3) { close(fd); kgp_shm_unlink(probe); return 0; }
     close(fd);
     b64((const unsigned char *)probe, strlen(probe), enc);
 
@@ -177,7 +178,7 @@ static int detect(void) {
         int h, w;
         if (buf[i] == 0x1b && buf[i + 1] == '[' && buf[i + 2] == '6' && buf[i + 3] == ';' && sscanf(buf + i + 4, "%d;%d", &h, &w) == 2) { q_ch = h; q_cw = w; }
     }
-    shm_unlink(probe);                  // normally the terminal already took it
+    kgp_shm_unlink(probe);                  // normally the terminal already took it
     int shm_ok = strstr(buf, "i=32;OK") != NULL;
     use_file = 0;
     for (int i = 0; i < 3; i++) {
@@ -206,7 +207,7 @@ int kgp_uses_files(void) { return kgp_active && use_file; }
 
 // ---- frames ------------------------------------------------------------------------------
 static void forget(unsigned slot) {
-    if (names[slot][0]) shm_unlink(names[slot]);    // ENOENT = the terminal took it, which is the normal case
+    if (names[slot][0]) kgp_shm_unlink(names[slot]);    // ENOENT = the terminal took it, which is the normal case
     names[slot][0] = 0;
 }
 
@@ -350,7 +351,7 @@ int kgp_frame(const Col *px, int w, int h, int cols, int rows) {
             m[3 * i + 2] = to8(px[i].b);
         }
     }
-    int fd = shm_open(names[slot], O_RDWR | O_CREAT | O_EXCL, 0600);
+    int fd = kgp_shm_open(names[slot], O_RDWR | O_CREAT | O_EXCL, 0600);
     if (fd < 0) { names[slot][0] = 0; fail(); return 0; }
     for (size_t done = 0; done < size;) {
         ssize_t k = write(fd, m + done, size - done);
