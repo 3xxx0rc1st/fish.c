@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Regenerate README assets (demo.gif, screenshot1-6.png, screenshot_shell.png) from the real cfish code.
+"""Regenerate README assets (demo.gif, screenshot1-6.png, screenshot_shell.png) from the real aquash code.
 
 Nothing here is drawn by hand: shotcap.c runs the actual pipeline (scene_draw -> ui_draw -> gfx_present) with a
 fixed time step and scripted keypresses, render.py replays the terminal byte stream and rasterizes the cells
 (8x16 px, half-block = two 8x8 pixels, text in DejaVu Sans Mono).
 
 Needs: gcc, make, python3 + Pillow + numpy, ffmpeg.
-    python3 tools/assets/make_assets.py --cfish-dir . --out assets
+    python3 tools/assets/make_assets.py --aquash-dir . --out assets
 """
 import argparse, os, shutil, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -25,21 +25,21 @@ def run(cmd, **kw):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--cfish-dir', default='.'); ap.add_argument('--out', default='assets')
+    ap.add_argument('--aquash-dir', default='.'); ap.add_argument('--out', default='assets')
     ap.add_argument('--only', choices=['shots', 'shell', 'gif'], help='build just one group')
     a = ap.parse_args()
-    cfish = os.path.abspath(a.cfish_dir); out = os.path.abspath(a.out); os.makedirs(out, exist_ok=True)
-    tmp = tempfile.mkdtemp(prefix='cfish-assets-')
+    aquash = os.path.abspath(a.aquash_dir); out = os.path.abspath(a.out); os.makedirs(out, exist_ok=True)
+    tmp = tempfile.mkdtemp(prefix='aquash-assets-')
     try:
-        srcs = [f for f in sorted(os.listdir(cfish)) if f.endswith('.c') and f != 'main.c']
+        srcs = [f for f in sorted(os.listdir(aquash)) if f.endswith('.c') and f != 'main.c']
         exe = os.path.join(tmp, 'shotcap')
-        run(['gcc', '-std=gnu11', '-O2', '-DNDEBUG', '-I.', '-o', exe, os.path.join(HERE, 'shotcap.c')] + srcs + ['-lm'], cwd=cfish)
+        run(['gcc', '-std=gnu11', '-O2', '-DNDEBUG', '-I.', '-o', exe, os.path.join(HERE, 'shotcap.c')] + srcs + ['-lm'], cwd=aquash)
         env = dict(os.environ, TZ='UTC')           # the HUD clock is faked (starts 12:00:00) but formatted via localtime
 
         def capture(cols, rows, theme, mode, frames, extra_env=None, name='x'):
             path = os.path.join(tmp, name + '.bin')
             with open(path, 'wb') as f:
-                run([exe, str(cols), str(rows), str(theme), str(SEED), mode, str(frames)], stdout=f, cwd=cfish, env=dict(env, **(extra_env or {})))
+                run([exe, str(cols), str(rows), str(theme), str(SEED), mode, str(frames)], stdout=f, cwd=aquash, env=dict(env, **(extra_env or {})))
             return path
 
         def last_frame(path, cols, rows):
@@ -55,10 +55,10 @@ def main():
                 print('screenshot%d.png (%s)' % (i + 1, THEMES[i]))
 
         if a.only in (None, 'shell'):
-            run(['make', '-s'], cwd=cfish)           # the demo runs ./build/cfish -l inside the panel
+            run(['make', '-s'], cwd=aquash)           # the demo runs ./build/aquash -l inside the panel
             home = os.path.join(tmp, 'home'); os.makedirs(home)
             open(os.path.join(home, '.bashrc'), 'w').write(
-                "PS1='\\[\\e[1;32m\\]user@cfish\\[\\e[0m\\] \\[\\e[1;34m\\]~/cfish\\[\\e[0m\\] \\[\\e[33m\\](master)\\[\\e[0m\\] $ '\n"
+                "PS1='\\[\\e[1;32m\\]user@aquash\\[\\e[0m\\] \\[\\e[1;34m\\]~/aquash\\[\\e[0m\\] \\[\\e[33m\\](master)\\[\\e[0m\\] $ '\n"
                 "alias ls='ls --color=auto'\n")
             p = capture(SHOT_COLS, SHOT_ROWS, 1, 'shell', 260, name='shell',
                         extra_env=dict(HOME=home, SHELL='/bin/bash', TERM='xterm-256color'))   # real time: ~9 s

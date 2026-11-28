@@ -218,7 +218,7 @@ static void draw_bubble(float x, float y, float r, float a, Col bc) {
 
 // palette of a fish for the current theme; dying ones fade to gray, roll over and become transparent
 static void fish_look(const Theme *th, const Fish *f, FishPalette *p, float *roll, float *opac) {
-    Col b = th->fish[f->ci % THEME_CFISH];
+    Col b = th->fish[f->ci % THEME_AQUASH];
     *roll = 1.0f;
     *opac = 1.0f;
     if (f->dying) {

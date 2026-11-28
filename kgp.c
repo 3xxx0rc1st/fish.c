@@ -109,7 +109,7 @@ static int detect(void) {
     if (term && (!strcmp(term, "linux") || !strncmp(term, "screen", 6) || !strncmp(term, "tmux", 4))) return 0;
 
     char probe[40], enc[96];
-    snprintf(probe, sizeof probe, "/cfish-probe-%d", (int)getpid());
+    snprintf(probe, sizeof probe, "/aquash-probe-%d", (int)getpid());
     int fd = shm_open(probe, O_RDWR | O_CREAT | O_EXCL, 0600);
     if (fd < 0) return 0;
     static const unsigned char px[3] = {0, 0, 0};
@@ -130,7 +130,7 @@ static int detect(void) {
 	if ((size_t)n >= sizeof q) n = (int)(sizeof q - 1);
     for (int i = 0; i < 3; i++) {
         if (!dirs[i] || strlen(dirs[i]) > 100) continue;
-        snprintf(fpath[i], sizeof fpath[i], "%s/cfish-probe-%d-%d", dirs[i], (int)getpid(), i);
+        snprintf(fpath[i], sizeof fpath[i], "%s/aquash-probe-%d-%d", dirs[i], (int)getpid(), i);
         int pf = open(fpath[i], O_WRONLY | O_CREAT | O_EXCL, 0600);
         if (pf < 0) continue;
         ssize_t wr = write(pf, px, 3); close(pf);
@@ -195,7 +195,7 @@ void kgp_init(KgpMode mode) {
     use_file = 0;
     if (mode == KGP_ON) {
         kgp_active = 1;
-        const char *d = getenv("CFISH_KGP_FILEDIR");     // forced: no question asked, so the file transport is opt-in here
+        const char *d = getenv("AQUASH_KGP_FILEDIR");     // forced: no question asked, so the file transport is opt-in here
         if (d && *d && strlen(d) < sizeof file_dir) { use_file = 1; snprintf(file_dir, sizeof file_dir, "%s", d); }
         return;
     }
@@ -218,10 +218,10 @@ static void fail(void) {
 
 // Pixel size of one cell. A terminal draws a smaller image stretched with a smooth filter (Ghostty does), which
 // blurs pixel art, so we scale the canvas ourselves to exactly the window's pixels. Where from, best first:
-// CFISH_CELL_SIZE=WxH (for a terminal that says nothing or the wrong thing), the window size ioctl, the
+// AQUASH_CELL_SIZE=WxH (for a terminal that says nothing or the wrong thing), the window size ioctl, the
 // terminal's answer to CSI 16 t, a guess.
 static void cell_size(int *cw, int *ch) {
-    const char *e = getenv("CFISH_CELL_SIZE");
+    const char *e = getenv("AQUASH_CELL_SIZE");
     int a, b;
     if (e && sscanf(e, "%dx%d", &a, &b) == 2 && a > 0 && b > 1) { *cw = a; *ch = b; return; }
     struct winsize ws;
@@ -255,7 +255,7 @@ static int frame_file(const Col *px, int w, int h, int cw, int chh, size_t W, si
     FSlot *s = &fring[slot];
     if (s->map && (s->size != size || s->state_size != (size_t)w * (size_t)h * 3)) slot_free(s);      // resized
     if (!s->map) {
-        snprintf(s->path, sizeof s->path, "%s/cfish-%d-%u-%u.frame", file_dir, (int)getpid(), slot, ++file_gen);
+        snprintf(s->path, sizeof s->path, "%s/aquash-%d-%u-%u.frame", file_dir, (int)getpid(), slot, ++file_gen);
         int fd = open(s->path, O_RDWR | O_CREAT | O_EXCL, 0600);
         if (fd < 0) { s->path[0] = 0; return 0; }
         if (ftruncate(fd, (off_t)size) != 0) { close(fd); slot_free(s); return 0; }
@@ -320,7 +320,7 @@ int kgp_frame(const Col *px, int w, int h, int cols, int rows) {
         if (names[i][0] && seq - name_seq[i] >= keep) forget(i);
     unsigned slot = seq % RING;
     forget(slot);
-    snprintf(names[slot], sizeof names[slot], "/cfish-%d-%u", (int)getpid(), seq);
+    snprintf(names[slot], sizeof names[slot], "/aquash-%d-%u", (int)getpid(), seq);
     name_seq[slot] = seq;
     // Build the frame in ordinary memory and hand it over with one write(): cheaper than filling a mapping of
     // the shared object (every page of that costs a fault), and a full /dev/shm is a plain ENOSPC from write()

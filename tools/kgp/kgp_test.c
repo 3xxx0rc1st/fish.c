@@ -112,7 +112,7 @@ int main(void) {
         { "200x400", 0,  0, 0, "window too big to scale ourselves: the bare canvas" },
     };
     for (unsigned ci = 0; ci < sizeof cases / sizeof *cases; ci++) {
-        if (cases[ci].env) setenv("CFISH_CELL_SIZE", cases[ci].env, 1); else unsetenv("CFISH_CELL_SIZE");
+        if (cases[ci].env) setenv("AQUASH_CELL_SIZE", cases[ci].env, 1); else unsetenv("AQUASH_CELL_SIZE");
         for (int y = 0; y < H; y++) for (int x = 0; x < W; x++)
             gfx_px[y * W + x] = col(expect(x, y, 0, W, H) + 0.3f, expect(x, y, 1, W, H) - 0.2f, expect(x, y, 2, W, H));   // exercises rounding
         cap_begin(); gfx_present(); out = cap_end(&n);
@@ -142,7 +142,7 @@ int main(void) {
         first_id = c1.id;                    // the id of the latest frame: the next one must differ
         free(out);
     }
-    setenv("CFISH_CELL_SIZE", "8x16", 1);                 // the rest of the tests: a small, known image
+    setenv("AQUASH_CELL_SIZE", "8x16", 1);                 // the rest of the tests: a small, known image
 
     // ---- 2. two ids alternate, the previous one is deleted after the new one is shown ---------------
     cap_begin(); gfx_present(); out = cap_end(&n);
@@ -177,17 +177,17 @@ int main(void) {
     free(out);
 
     // ---- 4. objects nobody takes do not pile up: at most KEEP stay ------------------------------------
-    char pre[40]; snprintf(pre, sizeof pre, "cfish-%d-", (int)getpid());
+    char pre[40]; snprintf(pre, sizeof pre, "aquash-%d-", (int)getpid());
     cap_begin(); for (int i = 0; i < 60; i++) gfx_present(); out = cap_end(&n); free(out);
     int left = count_shm(pre);
     CHECK(left > 0 && left <= 16, "unconsumed shm objects after 60 frames: %d (want <= 16)", left);
 
     // ---- 4b. big images: the unclaimed ones are bounded by bytes, not by count -------------------------------
-    setenv("CFISH_CELL_SIZE", "60x120", 1);                 // 40x10 cells -> 2400x1200 px = 8.6 MB per frame
+    setenv("AQUASH_CELL_SIZE", "60x120", 1);                 // 40x10 cells -> 2400x1200 px = 8.6 MB per frame
     cap_begin(); for (int i = 0; i < 30; i++) gfx_present(); out = cap_end(&n); free(out);
     left = count_shm(pre);
     CHECK(left > 0 && left <= 6, "unconsumed 8.6 MB objects after 30 frames: %d (the 48 MB budget allows 5)", left);
-    setenv("CFISH_CELL_SIZE", "8x16", 1);
+    setenv("AQUASH_CELL_SIZE", "8x16", 1);
     cap_begin(); kgp_shutdown(); out = cap_end(&n); free(out);
     cap_begin(); kgp_init(KGP_ON); gfx_resize(cols, rows); out = cap_end(&n); free(out);
 
@@ -206,7 +206,7 @@ int main(void) {
     DIR *d = opendir("/dev/shm"); struct dirent *e; unsigned maxseq = 0; int any = 0;
     while (d && (e = readdir(d))) if (!strncmp(e->d_name, pre, strlen(pre))) { unsigned s = (unsigned)atoi(e->d_name + strlen(pre)); if (!any || s > maxseq) maxseq = s; any = 1; }
     if (d) closedir(d);
-    char blocker[64]; snprintf(blocker, sizeof blocker, "/cfish-%d-%u", (int)getpid(), maxseq + 1);
+    char blocker[64]; snprintf(blocker, sizeof blocker, "/aquash-%d-%u", (int)getpid(), maxseq + 1);
     int bfd = shm_open(blocker, O_RDWR | O_CREAT | O_EXCL, 0600); close(bfd);
     cap_begin(); gfx_present(); out = cap_end(&n);
     CHECK(kgp_active == 0, "a frame that cannot be made must switch the backend off");
@@ -232,9 +232,9 @@ int main(void) {
     // ---- 8. the file ring: in-place frames, every slot must show the CURRENT canvas, even though it was last written
     //         FRING frames ago and the canvas changed only in a few places in between ---------------------------------
     char fdir[] = "/tmp/kgp_files_XXXXXX"; if (!mkdtemp(fdir)) { perror("mkdtemp"); return 2; }
-    setenv("CFISH_KGP_FILEDIR", fdir, 1); setenv("CFISH_CELL_SIZE", "10x21", 1);
+    setenv("AQUASH_KGP_FILEDIR", fdir, 1); setenv("AQUASH_CELL_SIZE", "10x21", 1);
     cap_begin(); kgp_init(KGP_ON); gfx_resize(cols, rows); out = cap_end(&n); free(out);
-    CHECK(kgp_uses_files(), "CFISH_KGP_FILEDIR must select the file transport");
+    CHECK(kgp_uses_files(), "AQUASH_KGP_FILEDIR must select the file transport");
     char first_path[200] = ""; int path_reuse = 0; long bad_total = 0; int frames_checked = 0;
     for (int fr = 0; fr < 10; fr++) {
         // a base picture plus a small square that moves: most of the canvas stays the same between frames
@@ -268,7 +268,7 @@ int main(void) {
         free(out);
     }
     CHECK(path_reuse, "frame 3 must reuse frame 0's file (in-place ring of 3): '%s'", first_path);
-    CHECK(count_files(fdir, "cfish-") == 3, "the ring is exactly 3 files, found %d", count_files(fdir, "fish-"));
+    CHECK(count_files(fdir, "aquash-") == 3, "the ring is exactly 3 files, found %d", count_files(fdir, "fish-"));
     CHECK(frames_checked == 10 && bad_total == 0, "all 10 frames exact");
 
     // quantization with -e: values come out as multiples of the step
@@ -290,14 +290,14 @@ int main(void) {
         if (k == 3) { size_t f8 = 0; Cmd c = parse_t(out, n, &f8); unsigned char *img = c.ok ? read_file(c.name, (size_t)30 * 10 * 8 * 21 * 3) : NULL;
                       CHECK(img != NULL && c.w == 300 && c.h == 168, "after a resize the file has the new size (%dx%d)", c.w, c.h); free(img); }
         free(out); }
-    CHECK(count_files(fdir, "cfish-") == 3, "a resize must not leave old files behind: %d", count_files(fdir, "fish-"));
+    CHECK(count_files(fdir, "aquash-") == 3, "a resize must not leave old files behind: %d", count_files(fdir, "fish-"));
 
     // shutdown unlinks the ring
     cap_begin(); kgp_shutdown(); out = cap_end(&n); free(out);
-    CHECK(count_files(fdir, "cfish-") == 0, "shutdown must remove the ring files: %d left", count_files(fdir, "fish-"));
+    CHECK(count_files(fdir, "aquash-") == 0, "shutdown must remove the ring files: %d left", count_files(fdir, "fish-"));
 
     // a directory that cannot be used: the frame goes through shared memory instead, the backend stays on
-    setenv("CFISH_KGP_FILEDIR", "/nonexistent/dir/for/kgp", 1);
+    setenv("AQUASH_KGP_FILEDIR", "/nonexistent/dir/for/kgp", 1);
     cap_begin(); kgp_init(KGP_ON); gfx_resize(cols, rows); out = cap_end(&n); free(out);
     cap_begin(); gfx_present(); out = cap_end(&n);
     { size_t f8 = 0; Cmd c = parse_t(out, n, &f8);
@@ -305,7 +305,7 @@ int main(void) {
       if (c.ok) { unsigned char *x = read_shm(c.name, (size_t)c.w * c.h * 3); free(x); } }
     free(out);
     cap_begin(); kgp_shutdown(); out = cap_end(&n); free(out);
-    unsetenv("CFISH_KGP_FILEDIR"); setenv("CFISH_CELL_SIZE", "8x16", 1);
+    unsetenv("AQUASH_KGP_FILEDIR"); setenv("AQUASH_CELL_SIZE", "8x16", 1);
     rmdir(fdir);
 
     // ---- 7. -g off does nothing at all --------------------------------------------------------------------

@@ -1,5 +1,5 @@
-// cfish - terminal aquarium in C
-// make && ./build/cfish [-f fps] [-t theme] [-s seed] [-e level] [-g mode] [-T] [-l]   (s / F12 - shell over the water)
+// aquash - terminal aquarium in C
+// make && ./build/aquash [-f fps] [-t theme] [-s seed] [-e level] [-g mode] [-T] [-l]   (s / F12 - shell over the water)
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,7 +49,7 @@ static void wait_frame(double start, double target, int *intro) {
 
 static void usage(FILE *o) {
     fprintf(o,
-        "usage: cfish [-f fps] [-t theme] [-s seed] [-e level] [-g mode] [-T] [-l]\n"
+        "usage: aquash [-f fps] [-t theme] [-s seed] [-e level] [-g mode] [-T] [-l]\n"
         "  -f fps    frame rate, 5..120 (default 30)\n"
         "  -t theme  start palette (see -l); 't' / 'T' switch it in the aquarium\n"
         "  -s seed   random seed\n"
@@ -70,14 +70,14 @@ int main(int argc, char **argv) {
             case 'f': fps_target = atoi(optarg); break;
             case 't':
                 theme0 = theme_find(optarg);
-                if (theme0 < 0) { fprintf(stderr, "cfish: no such palette '%s' (see -l)\n", optarg); return 1; }
+                if (theme0 < 0) { fprintf(stderr, "aquash: no such palette '%s' (see -l)\n", optarg); return 1; }
                 break;
             case 'e': gfx_tol = atoi(optarg); if (gfx_tol < 0) gfx_tol = 0; if (gfx_tol > 32) gfx_tol = 32; break;
             case 'g':
                 if (!strcmp(optarg, "auto")) kmode = KGP_AUTO;
                 else if (!strcmp(optarg, "on")) kmode = KGP_ON;
                 else if (!strcmp(optarg, "off")) kmode = KGP_OFF;
-                else { fprintf(stderr, "cfish: -g wants auto, on or off\n"); return 1; }
+                else { fprintf(stderr, "aquash: -g wants auto, on or off\n"); return 1; }
                 break;
             case 's': seed = (uint32_t)strtoul(optarg, NULL, 10); have_seed = 1; break;
             case 'T': no_vt = 1; break;
@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
     if (fps_target > 120) fps_target = 120;
 
     if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) {
-        fprintf(stderr, "cfish: needs real terminal (tty)\n");
+        fprintf(stderr, "aquash: needs real terminal (tty)\n");
         return 1;
     }
     rng_seed(have_seed ? seed * 2654435761u + 1u : (uint32_t)time(NULL) * 2654435761u);

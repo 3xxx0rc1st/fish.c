@@ -140,6 +140,6 @@ void theme_vt_palette(const Theme *t, Col p[16]) {
     p[6] = lerpc(scalec(t->sand, 0.55f), t->grid_line, t->grid);
     p[7] = t->weed_front;
     p[8] = t->weed_back;
-    for (int i = 0; i < THEME_CFISH; i++) p[9 + i] = t->fish[i];
+    for (int i = 0; i < THEME_AQUASH; i++) p[9 + i] = t->fish[i];
     p[15] = t->ui_title;
 }

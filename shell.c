@@ -448,7 +448,7 @@ static int spawn(int gc, int gr) {
         sigprocmask(SIG_SETMASK, &none, NULL);
         setenv("TERM", "xterm-256color", 1);
         setenv("COLORTERM", "truecolor", 1);
-        setenv("CFISH_AQUARIUM", "1", 1);
+        setenv("AQUASH_AQUARIUM", "1", 1);
         unsetenv("LINES"); unsetenv("COLUMNS");
         const char *sh = getenv("SHELL");
         if (!sh || !*sh) sh = "/bin/sh";

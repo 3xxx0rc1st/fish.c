@@ -7,7 +7,7 @@
 
 #include "util.h"
 
-#define THEME_CFISH 6
+#define THEME_AQUASH 6
 
 typedef struct {
     // water: vertical gradient down to the horizon
@@ -25,7 +25,7 @@ typedef struct {
     // inhabitants
     Col   weed_back, weed_front;
     Col   bubble, food;
-    Col   fish[THEME_CFISH];
+    Col   fish[THEME_AQUASH];
     // ui
     Col   ui_box, ui_frame, ui_title, ui_sub, ui_key, ui_text, ui_dim, ui_prompt;
 } Theme;
