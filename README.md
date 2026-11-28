@@ -167,6 +167,7 @@ Its rendering architecture includes:
 - Layer compositing.
 - Alpha blending.
 - Subpixel-level rendering.
+- Kitty Graphics Protocol support.
 - Frame differencing to minimize terminal updates.
 - Time-based animation and frame pacing.
 - PTY-based process management.
