@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay cfish's terminal byte stream and render cell grids to images (cell = 8x16, half-block = 8x8 pixels)."""
+"""Replay aquash's terminal byte stream and render cell grids to images (cell = 8x16, half-block = 8x8 pixels)."""
 import re, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont

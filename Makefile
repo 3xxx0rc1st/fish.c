@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := all
 .DELETE_ON_ERROR:
  
-NAME      := cfish
+NAME      := aquash
 BUILD_DIR ?= build
 PREFIX    ?= /usr/local
 DESTDIR   ?=

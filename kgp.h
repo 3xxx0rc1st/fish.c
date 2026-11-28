@@ -24,7 +24,7 @@ void kgp_init(KgpMode mode);
 
 // Puts the canvas (w x h, float RGB; w = cols, h = 2 * rows) into a fresh shared-memory object, scaled
 // with nearest neighbour to exactly the window's pixels (cell size: see cell_size() in kgp.c; override
-// with CFISH_CELL_SIZE=WxH). The terminal would stretch a smaller image with a smooth filter and blur
+// with AQUASH_CELL_SIZE=WxH). The terminal would stretch a smaller image with a smooth filter and blur
 // the pixel art. 0 = failed: the backend switches itself off and gfx_present falls back to half-blocks.
 int  kgp_frame(const Col *px, int w, int h, int cols, int rows);
 // Appends the commands for the frame prepared by kgp_frame() to the output buffer: show the new
