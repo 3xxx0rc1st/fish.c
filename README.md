@@ -22,7 +22,7 @@ No GUI frameworks, no heavyweight dependencies, no unnecessary abstraction. Just
 - **Subpixel rendering** - improved visual resolution using terminal character cells.
 - **Differential rendering** - redraws only changed portions of the frame to reduce unnecessary terminal output.
 - **Color palettes** - multiple visual themes for different aquarium aesthetics. See [assets](assets) for screenshots.
-- **Kitty graphics (optional)** - in a local terminal that speaks the kitty graphics protocol (kitty, Ghostty, ...) the water is sent as an image through shared memory and only the text stays text: the terminal has much less to parse. Detected automatically (`-g auto`); everywhere else - ssh, tmux, other terminals - the half-block renderer is used as before. The image is scaled by fish itself to exactly the window's pixels (terminals stretch smaller images with a smooth filter, which blurs pixel art); if your terminal does not report its cell size, tell fish with `FISH_CELL_SIZE=10x21 ./build/fish`.
+- **Kitty graphics (optional)** - in a local terminal that speaks the kitty graphics protocol (kitty, Ghostty, ...) the water is sent as an image through shared memory and only the text stays text: the terminal has much less to parse. Detected automatically (`-g auto`); everywhere else - ssh, tmux, other terminals - the half-block renderer is used as before. The image is scaled by fish itself to exactly the window's pixels (terminals stretch smaller images with a smooth filter, which blurs pixel art); if your terminal does not report its cell size, tell fish with `FISH_CELL_SIZE=10x21 ./build/fish`. When the terminal agrees to read plain files from your runtime directory (it is asked at start-up), the frames are rewritten **in place** in a ring of three files and only the pixels that changed are touched, which is several times cheaper than a new shared-memory object per frame; otherwise shared memory is used.
 - **Lightweight** - a small native executable with minimal runtime dependencies.
 - **Integrated terminal** - launch an interactive `$SHELL` session inside a translucent terminal panel rendered directly over the aquarium. Supports pseudo-terminal communication, ANSI escape sequences, scrollback, and background aquarium animation.
 
@@ -37,7 +37,7 @@ No GUI frameworks, no heavyweight dependencies, no unnecessary abstraction. Just
 ## Building
 
 Clone the repository:
-
+fish-kgp-inplace
 ```bash
 git clone https://github.com/3xxx0rc1st/fish.c
 cd fish.c

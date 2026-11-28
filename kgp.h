@@ -34,6 +34,9 @@ void kgp_emit(int cols, int rows);
 // was cleared.
 void kgp_emit_clear(void);
 
+// 1 when frames travel through the in-place file ring (see kgp.c), 0 for per-frame shared memory.
+int  kgp_uses_files(void);
+
 // Delete the image, unlink objects the terminal did not take. Idempotent (term_restore calls it).
 void kgp_shutdown(void);
 
