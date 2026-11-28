@@ -126,6 +126,8 @@ static int detect(void) {
     int n = snprintf(q, sizeof q,
         "\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\"
         "\x1b_Gi=32,s=1,v=1,a=q,t=s,f=24;%s\x1b\\", enc);
+    if (n < 0) n = 0;
+	if ((size_t)n >= sizeof q) n = (int)(sizeof q - 1);
     for (int i = 0; i < 3; i++) {
         if (!dirs[i] || strlen(dirs[i]) > 100) continue;
         snprintf(fpath[i], sizeof fpath[i], "%s/fish-probe-%d-%d", dirs[i], (int)getpid(), i);
@@ -135,11 +137,23 @@ static int detect(void) {
         if (wr != 3) { unlink(fpath[i]); continue; }
         b64((const unsigned char *)fpath[i], strlen(fpath[i]), fenc[i]);
         offered[i] = 1;
-        n += snprintf(q + n, sizeof q - (size_t)n, "\x1b_Gi=%d,s=1,v=1,a=q,t=f,f=24;%s\x1b\\", 40 + i, fenc[i]);
+        if ((size_t)n >= sizeof q) break;
+        size_t rem = sizeof q - (size_t)n;
+        int m = snprintf(q + n, rem, "\x1b_Gi=%d,s=1,v=1,a=q,t=f,f=24;%s\x1b\\", 40 + i, fenc[i]);
+        if (m < 0) break;
+        if ((size_t)m >= rem) { n = (int)(sizeof q - 1); break; }
+        n += m;
     }
-    n += snprintf(q + n, sizeof q - (size_t)n,
-        "\x1b[16t"                  // cell size in pixels, answered as ESC [ 6 ; height ; width t
-        "\x1b[c");
+    if ((size_t)n < sizeof q) {
+        size_t rem = sizeof q - (size_t)n;
+        int m = snprintf(q + n, rem,
+            "\x1b[16t"                  // cell size in pixels, answered as ESC [ 6 ; height ; width t
+            "\x1b[c");
+        if (m > 0) {
+            if ((size_t)m >= rem) n = (int)(sizeof q - 1);
+            else n += m;
+        }
+    }
     put_all(q, (size_t)n);
 
     char buf[1024];
