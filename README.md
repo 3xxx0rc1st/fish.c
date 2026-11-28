@@ -37,7 +37,6 @@ No GUI frameworks, no heavyweight dependencies, no unnecessary abstraction. Just
 ## Building
 
 Clone the repository:
-fish-kgp-inplace
 ```bash
 git clone https://github.com/3xxx0rc1st/fish.c
 cd fish.c
