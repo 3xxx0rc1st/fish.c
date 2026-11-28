@@ -6,7 +6,7 @@
 #include "term.h"
 #include "theme.h"
 int main(void) {
-    setenv("FISH_CELL_SIZE", "40x80", 1);               // 40x10 cells -> 1600x800 px = 3.8 MB; /dev/shm below is 2 MB
+    setenv("CFISH_CELL_SIZE", "40x80", 1);               // 40x10 cells -> 1600x800 px = 3.8 MB; /dev/shm below is 2 MB
     theme_set_now(0); kgp_init(KGP_ON); gfx_resize(40, 10);
     gfx_present();
     fprintf(stderr, "survived: kgp_active=%d\n", kgp_active);

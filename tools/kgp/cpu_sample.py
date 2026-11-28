@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Measure how much CPU fish and the terminal burn over a time window, from /proc (no htop, nothing in the aquarium).
+"""Measure how much CPU cfish and the terminal burn over a time window, from /proc (no htop, nothing in the aquarium).
 
-    python3 tools/kgp/cpu_sample.py                      # 20 s, targets: ghostty fish
+    python3 tools/kgp/cpu_sample.py                      # 20 s, targets: ghostty cfish
     python3 tools/kgp/cpu_sample.py --secs 30 --fps 30 ghostty 12345
 
 A target is a process name (every match is summed) or a pid. CPU is process-wide (all threads, also the ones that
@@ -9,8 +9,8 @@ exited during the window) in percent of ONE core, so 100 = one core fully busy. 
 printed too (cpu time / frames), the number that can be compared between modes and machines.
 
 Compare two runs under the same conditions: same terminal, `-f 30`, same theme/seed, panel closed:
-    ./build/fish -f 30 -t ocean -s 2 -g on      ->  run this, note the numbers
-    ./build/fish -f 30 -t ocean -s 2 -g off     ->  run this again
+    ./build/cfish -f 30 -t ocean -s 2 -g on      ->  run this, note the numbers
+    ./build/cfish -f 30 -t ocean -s 2 -g off     ->  run this again
 """
 import argparse, os, sys, time
 
@@ -44,7 +44,7 @@ def snapshot(targets):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('targets', nargs='*', default=['ghostty', 'fish'])
+    ap.add_argument('targets', nargs='*', default=['ghostty', 'cfish'])
     ap.add_argument('--secs', type=float, default=20.0)
     ap.add_argument('--fps', type=float, default=0.0, help='the -f of the aquarium: print the cost of one frame too')
     a = ap.parse_args()

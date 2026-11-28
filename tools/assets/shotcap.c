@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
             if (f == 270) theme_step(+1);           // retrowave -> sunset
         }
         if (shell) {
-            static const char *cmds[] = { "./build/fish -l\r", "ls\r", "git --no-pager log --oneline -4\r" };
+            static const char *cmds[] = { "./build/cfish -l\r", "ls\r", "git --no-pager log --oneline -4\r" };
             static const int at[] = { 60, 100, 150 };
             if (f == 20) shell_toggle();
             for (int i = 0; i < 3; i++) if (f == at[i]) shell_input(cmds[i], strlen(cmds[i]));

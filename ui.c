@@ -57,7 +57,7 @@ static void intro_text(const World *w, const Theme *th) {
         text_put(2, bx + BOX_W - 1, y, "│", frame, 1.0f);
     }
 
-    const char *head = "FISH";
+    const char *head = "CFISH";
     text_put(2, bx + (BOX_W - utf8_len(head)) / 2, by + 1, head, title, 1.0f);
     const char *subhead = "A tiny ecosystem in your terminal.";
     text_put(2, bx + (BOX_W - utf8_len(subhead)) / 2, by + 2, subhead, description, 1.0f);
