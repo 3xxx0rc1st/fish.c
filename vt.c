@@ -58,7 +58,7 @@ static void make_glyphs(unsigned char *font, size_t stride, unsigned w, unsigned
 }
 
 int vt_init(int enable) {
-    const char *e = getenv("FISH_VT");
+    const char *e = getenv("CFISH_VT");
     if (e && !strcmp(e, "0")) return 0;
     if (e && !strcmp(e, "force")) { vt_active = 1; return 1; }     // test hook
     if (!enable) return 0;
@@ -111,7 +111,7 @@ uint32_t vt_map_cp(uint32_t cp) {
 
 int vt_init(int enable) {
     (void)enable;
-    const char *e = getenv("FISH_VT");
+    const char *e = getenv("CFISH_VT");
     if (e && !strcmp(e, "force")) { vt_active = 1; return 1; }
     return 0;
 }

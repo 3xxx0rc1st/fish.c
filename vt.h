@@ -5,7 +5,7 @@
 //  - 16 fixed colors, and only 8 of them can be a background;
 //  - with a 512-glyph font bright colors are gone (intensity bit = 9th glyph bit);
 //  - a font may lack half-blocks / box drawing (typical for cyrillic fonts).
-// So while fish is running we:
+// So while cfish is running we:
 //  1. save the font, load a 256-glyph one (same glyphs + our own in slots 1..9);
 //  2. reprogram the 16-color palette from the current theme (OSC P);
 //  3. render with palette indices + ordered dithering (see gfx.c).
@@ -28,8 +28,8 @@ extern int vt_active;       // 1 - console mode: palette indices instead of true
 #define VT_G_H      0xF008u     // ─
 #define VT_G_V      0xF009u     // │
 
-// enable = 0: do not touch the console (-T). FISH_VT=0 disables it too,
-// FISH_VT=force enables the renderer without ioctl (test hook, any terminal).
+// enable = 0: do not touch the console (-T). CFISH_VT=0 disables it too,
+// CFISH_VT=force enables the renderer without ioctl (test hook, any terminal).
 int      vt_init(int enable);
 void     vt_restore(void);      // idempotent, async-signal-safe enough for crash handler
 
